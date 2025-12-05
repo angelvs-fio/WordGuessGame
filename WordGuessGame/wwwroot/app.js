@@ -208,16 +208,13 @@
     }
 
     // Painter canvas events
-    function getCanvasPos(ev, isCanvasCoords = false) {
+    function getCanvasPos(ev) {
         const rect = paintCanvas.getBoundingClientRect();
-        if (isCanvasCoords) {
-            // Coordinates are already in canvas CSS-space
-            return { x: ev.x, y: ev.y };
-        }
         const clientX = ev.clientX ?? (ev.pageX - window.scrollX);
         const clientY = ev.clientY ?? (ev.pageY - window.scrollY);
-        const x = (clientX - rect.left) * (paintCanvas.width / rect.width);
-        const y = (clientY - rect.top) * (paintCanvas.height / rect.height);
+        // Return CSS pixel coordinates (context is scaled to match DPR)
+        const x = (clientX - rect.left);
+        const y = (clientY - rect.top);
         return { x, y };
     }
 
@@ -286,13 +283,9 @@
     async function endDraw(ev) {
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         drawing = false;
-        // If no event coordinates provided (e.g., window mouseup), use last canvas coords directly
-        let pos;
-        if (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) {
-            pos = getCanvasPos(ev);
-        } else {
-            pos = getCanvasPos({ x: lastX, y: lastY }, true);
-        }
+        const pos = ev && (ev.clientX !== undefined || ev.pageX !== undefined)
+            ? getCanvasPos(ev)
+            : { x: lastX, y: lastY };
         const { x, y } = pos;
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
