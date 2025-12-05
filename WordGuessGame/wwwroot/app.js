@@ -35,29 +35,6 @@
     const paintClearBtn = document.getElementById("paintClearBtn");
     const ctx = paintCanvas ? paintCanvas.getContext("2d") : null;
 
-    // Configure canvas to use CSS pixel size without DPR scaling
-    function setupCanvasSize() {
-        if (!paintCanvas || !ctx) return;
-        const rect = paintCanvas.getBoundingClientRect();
-        const width = Math.max(1, Math.round(rect.width));
-        const height = Math.max(1, Math.round(rect.height));
-        if (paintCanvas.width !== width || paintCanvas.height !== height) {
-            // Save drawing
-            let oldImage = null;
-            try { oldImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch {}
-            paintCanvas.width = width;
-            paintCanvas.height = height;
-            // Reset any transforms
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            // Restore drawing if available
-            if (oldImage) {
-                try { ctx.putImageData(oldImage, 0, 0); } catch {}
-            }
-        }
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-    }
-
     // State
     let isGameOver = false;
     let isPainter = false;
@@ -208,19 +185,19 @@
         const rect = paintCanvas.getBoundingClientRect();
         const clientX = ev.clientX ?? (ev.pageX - window.scrollX);
         const clientY = ev.clientY ?? (ev.pageY - window.scrollY);
-        const x = (clientX - rect.left);
-        const y = (clientY - rect.top);
+        const x = (clientX - rect.left) * (paintCanvas.width / rect.width);
+        const y = (clientY - rect.top) * (paintCanvas.height / rect.height);
         return { x, y };
     }
 
     function beginDraw(ev) {
         if (!ctx || !isPainter) return;
-        setupCanvasSize();
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
         startX = x; startY = y;
-        try { baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch { baseImage = null; }
+        // save base image for shape preview
+        baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
     }
 
     async function draw(ev) {
@@ -231,19 +208,25 @@
 
         const tool = paintTool ? paintTool.value : "freehand";
         if (tool === "freehand") {
+            // Draw locally for the painter
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
-            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(x, y);
             ctx.stroke();
+
+            // Broadcast stroke to others
             try {
                 await connection.invoke("DrawStroke", getUser(), lastX, lastY, x, y, color, size);
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+            }
+
             lastX = x; lastY = y;
         } else {
+            // Preview shapes while dragging
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -269,24 +252,23 @@
     async function endDraw(ev) {
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         drawing = false;
-        const pos = ev && (ev.clientX !== undefined || ev.pageX !== undefined)
-            ? getCanvasPos(ev)
-            : { x: lastX, y: lastY };
-        const { x, y } = pos;
+        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
+        const { x, y } = getCanvasPos(pointEv);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
         const tool = paintTool ? paintTool.value : "freehand";
 
         if (tool === "line") {
+            // local (ensure final render based on saved base)
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
-            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(x, y);
             ctx.stroke();
+            // broadcast
             try {
                 await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
             } catch (e) { console.error(e); }
@@ -322,7 +304,6 @@
         ctx.strokeStyle = seg.color || "#000";
         ctx.lineWidth = Number(seg.size) || 4;
         ctx.lineCap = "round";
-        ctx.lineJoin = "round";
         ctx.beginPath();
         ctx.moveTo(seg.x1, seg.y1);
         ctx.lineTo(seg.x2, seg.y2);
@@ -339,7 +320,6 @@
         ctx.lineWidth = size;
         if (type === "line") {
             ctx.lineCap = "round";
-            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(p.x1, p.y1);
             ctx.lineTo(p.x2, p.y2);
@@ -354,12 +334,10 @@
     }
 
     if (paintCanvas && ctx) {
-        setupCanvasSize();
-        window.addEventListener("resize", setupCanvasSize);
-
         paintCanvas.addEventListener("mousedown", beginDraw);
         paintCanvas.addEventListener("mousemove", draw);
         window.addEventListener("mouseup", endDraw);
+        // Touch support
         paintCanvas.addEventListener("touchstart", (e) => { e.preventDefault(); beginDraw(e.touches[0]); }, { passive: false });
         paintCanvas.addEventListener("touchmove", (e) => { e.preventDefault(); draw(e.touches[0]); }, { passive: false });
         paintCanvas.addEventListener("touchend", (e) => { e.preventDefault(); const t = e.changedTouches && e.changedTouches[0]; endDraw(t ? t : undefined); }, { passive: false });
@@ -432,6 +410,7 @@
         historyList.innerHTML = "";
         statusText.textContent = resetMsg || "Game reset. Waiting for secret...";
         setInputsEnabled(true);
+        // Clear painter canvas on reset
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
     }
@@ -504,8 +483,14 @@
         updateStatus(state);
     });
 
-    connection.on("Stroke", seg => { renderStroke(seg); });
-    connection.on("Shape", shape => { renderShape(shape); });
+    // Drawing broadcasts
+    connection.on("Stroke", seg => {
+        renderStroke(seg);
+    });
+
+    connection.on("Shape", shape => {
+        renderShape(shape);
+    });
 
     connection.on("CanvasCleared", () => {
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
@@ -534,6 +519,5 @@
             return;
         }
         setInputsEnabled(true);
-        setupCanvasSize();
     })();
 })();
