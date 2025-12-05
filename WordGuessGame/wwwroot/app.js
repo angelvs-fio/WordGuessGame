@@ -150,7 +150,8 @@
     function setInputsEnabled(enabled) {
         const nameSelected = hasSelectedName();
 
-        painterSection.style.display = (!isGameOver && isPainter) ? "block" : "none";
+        // Keep painter section visible even when game is over
+        painterSection.style.display = isPainter ? "block" : "none";
         guessSection.style.display = isPainter ? "none" : "block";
         applyNameRowVisibility();
 
