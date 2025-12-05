@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Drawing word guess</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <header><h1>Drawing word guess</h1></header>
+
+        <div class="layout">
+            <!-- Left column -->
+            <div class="left">
+                <section class="user" id="userSection">
+                    <!-- Painter toggle button -->
+                    <div class="inline" style="margin-top:8px;">
+                        <button id="painterBtn" class="toggle-btn" aria-pressed="false">I am the painter</button>
+                    </div>
+                    <div id="userNameRow" class="inline">
+                        <select id="userName">
+                            <option value="" disabled selected>Select your name</option>
+                        </select>
+                    </div>
+                </section>
+
+                <section class="painter" id="painterSection" style="display:none;">
+                    <h2>Painter's Secret</h2>
+                    <div class="inline">
+                        <input id="secretInput" type="text" placeholder="Enter secret word (visible)" />
+                        <button id="setSecretBtn">Set Secret</button>
+                    </div>
+                    <small class="hint">Only the painter should set the secret. It is broadcast as gameplay (not the value).</small>
+                </section>
+
+                <section class="guess" id="guessSection">
+                    <h2>Make a Guess</h2>
+                    <div class="inline">
+                        <input id="guessInput" type="text" placeholder="Type your guess" />
+                        <button id="guessBtn">Guess</button>
+                    </div>
+                </section>
+
+                <!-- Paint area: canvas is visible to everyone; controls only to painter -->
+                <section class="paint" id="paintSection">
+                    <h2>Draw</h2>
+                    <div class="inline" style="gap:8px; align-items:center; flex-direction:column;">
+                        <canvas id="paintCanvas" width="640" height="400" style="border:1px solid #ccc; background:#fff; width:100%; max-width:640px;"></canvas>
+                        <div id="paintControls" class="inline" style="gap:12px; align-items:center; justify-content:flex-start; width:100%; max-width:640px; display:none; flex-wrap:wrap;">
+                            <div class="inline" style="gap:8px;">
+                                <label>
+                                    Tool:
+                                    <select id="paintTool">
+                                        <option value="freehand" selected>Freehand</option>
+                                        <option value="line">Line</option>
+                                        <option value="rect">Rectangle</option>
+                                        <option value="circle">Circle</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label>
+                                Color:
+                                <input id="paintColor" type="color" value="#000000" />
+                            </label>
+                            <label>
+                                Size:
+                                <input id="paintSize" type="range" min="1" max="20" value="4" />
+                            </label>
+                            <button id="paintClearBtn">Clear</button>
+                        </div>
+                    </div>
+                    <small class="hint">Only the painter sees the controls. All players see the drawing.</small>
+                </section>
+
+                <section class="history">
+                    <h2>History</h2>
+                    <ul id="historyList" class="history-list"></ul>
+                </section>
+            </div>
+
+            <!-- Right column -->
+            <div class="right">
+                <section class="status">
+                    <div id="statusText">Waiting for secret...</div>
+                </section>
+
+                <section class="actions" id="resetSection">
+                    <div class="inline" style="display:flex; gap:8px;">
+                        <button id="resetKeepResultsBtn" style="flex:1">Reset</button>
+                        <button id="resetWithResultsBtn" style="flex:1">Reset Game</button>
+                    </div>
+                </section>
+
+                <section class="results">
+                    <h2>Results</h2>
+                    <table id="resultsTable">
+                        <thead>
+                            <tr><th>Name</th><th>Points</th></tr>
+                        </thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

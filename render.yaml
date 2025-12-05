@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: word-guess-game
+    env: docker
+    plan: free
+    region: oregon
+    rootDir: WordGuessGame
+    dockerCommand: ""
+    envVars:
+      - key: PORT
+        value: 8080
