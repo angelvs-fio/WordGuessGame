@@ -10,7 +10,23 @@ using WordGuessGame.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+// Bind to platform port (e.g., Koyeb sets PORT). Default to 8000.
+var portEnv = Environment.GetEnvironmentVariable("PORT");
+var port = !string.IsNullOrWhiteSpace(portEnv) ? portEnv : "8000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
+// Allowed origins from env var (comma-separated) or appsettings
+var allowedOriginsEnv = Environment.GetEnvironmentVariable("AllowedOrigins");
+string[] allowedOrigins;
+if (!string.IsNullOrWhiteSpace(allowedOriginsEnv))
+{
+    allowedOrigins = allowedOriginsEnv
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+else
+{
+    allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+}
 
 builder.Services.AddCors(options =>
 {
