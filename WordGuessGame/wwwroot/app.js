@@ -47,8 +47,8 @@
 
     // Throttling for freehand stroke sending
     let lastStrokeSentTs = 0;
-    const STROKE_SEND_INTERVAL_MS = 16; // ~60fps
-    const STROKE_MIN_DISTANCE = 0.5; // ignore tiny moves
+    const STROKE_SEND_INTERVAL_MS = 10; // ~100fps, reduce gaps
+    const STROKE_MIN_DISTANCE = 0.3; // accept shorter moves
 
     // Load players into dropdown
     async function populateNames() {
@@ -309,6 +309,11 @@
             ctx.stroke();
             try {
                 await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color, size });
+            } catch (e) { console.error(e); }
+        } else {
+            // Freehand: send a final segment to avoid a gap caused by throttling
+            try {
+                connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
             } catch (e) { console.error(e); }
         }
         baseImage = null;
