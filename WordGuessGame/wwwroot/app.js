@@ -35,29 +35,25 @@
     const paintClearBtn = document.getElementById("paintClearBtn");
     const ctx = paintCanvas ? paintCanvas.getContext("2d") : null;
 
-    // Ensure canvas accounts for device pixel ratio to avoid short/stepped lines
-    function setupCanvasDpi() {
+    // Configure canvas to use CSS pixel size without DPR scaling
+    function setupCanvasSize() {
         if (!paintCanvas || !ctx) return;
-        const dpr = window.devicePixelRatio || 1;
         const rect = paintCanvas.getBoundingClientRect();
-        // Set the canvas size in actual pixels
-        const width = Math.max(1, Math.round(rect.width * dpr));
-        const height = Math.max(1, Math.round(rect.height * dpr));
+        const width = Math.max(1, Math.round(rect.width));
+        const height = Math.max(1, Math.round(rect.height));
         if (paintCanvas.width !== width || paintCanvas.height !== height) {
-            // Save existing drawing
-            const oldImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
+            // Save drawing
+            let oldImage = null;
+            try { oldImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch {}
             paintCanvas.width = width;
             paintCanvas.height = height;
-            // Scale the context so drawing uses CSS pixels
+            // Reset any transforms
             ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.scale(dpr, dpr);
-            // Restore if possible (best-effort)
-            try { ctx.putImageData(oldImage, 0, 0); } catch { /* ignore */ }
-        } else {
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.scale(dpr, dpr);
+            // Restore drawing if available
+            if (oldImage) {
+                try { ctx.putImageData(oldImage, 0, 0); } catch {}
+            }
         }
-        // Improve joint rendering
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
     }
@@ -212,7 +208,6 @@
         const rect = paintCanvas.getBoundingClientRect();
         const clientX = ev.clientX ?? (ev.pageX - window.scrollX);
         const clientY = ev.clientY ?? (ev.pageY - window.scrollY);
-        // Return CSS pixel coordinates (context is scaled to match DPR)
         const x = (clientX - rect.left);
         const y = (clientY - rect.top);
         return { x, y };
@@ -220,14 +215,12 @@
 
     function beginDraw(ev) {
         if (!ctx || !isPainter) return;
-        // Ensure DPI setup before drawing
-        setupCanvasDpi();
+        setupCanvasSize();
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
         startX = x; startY = y;
-        // save base image for shape preview
-        baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
+        try { baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height); } catch { baseImage = null; }
     }
 
     async function draw(ev) {
@@ -238,7 +231,6 @@
 
         const tool = paintTool ? paintTool.value : "freehand";
         if (tool === "freehand") {
-            // Draw locally for the painter
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
@@ -247,17 +239,11 @@
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(x, y);
             ctx.stroke();
-
-            // Broadcast stroke to others
             try {
                 await connection.invoke("DrawStroke", getUser(), lastX, lastY, x, y, color, size);
-            } catch (e) {
-                console.error(e);
-            }
-
+            } catch (e) { console.error(e); }
             lastX = x; lastY = y;
         } else {
-            // Preview shapes while dragging
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -292,7 +278,6 @@
         const tool = paintTool ? paintTool.value : "freehand";
 
         if (tool === "line") {
-            // local (ensure final render based on saved base)
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -302,7 +287,6 @@
             ctx.moveTo(startX, startY);
             ctx.lineTo(x, y);
             ctx.stroke();
-            // broadcast
             try {
                 await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
             } catch (e) { console.error(e); }
@@ -370,14 +354,12 @@
     }
 
     if (paintCanvas && ctx) {
-        // Initial DPI setup and adjust on resize
-        setupCanvasDpi();
-        window.addEventListener("resize", setupCanvasDpi);
+        setupCanvasSize();
+        window.addEventListener("resize", setupCanvasSize);
 
         paintCanvas.addEventListener("mousedown", beginDraw);
         paintCanvas.addEventListener("mousemove", draw);
         window.addEventListener("mouseup", endDraw);
-        // Touch support
         paintCanvas.addEventListener("touchstart", (e) => { e.preventDefault(); beginDraw(e.touches[0]); }, { passive: false });
         paintCanvas.addEventListener("touchmove", (e) => { e.preventDefault(); draw(e.touches[0]); }, { passive: false });
         paintCanvas.addEventListener("touchend", (e) => { e.preventDefault(); const t = e.changedTouches && e.changedTouches[0]; endDraw(t ? t : undefined); }, { passive: false });
@@ -450,7 +432,6 @@
         historyList.innerHTML = "";
         statusText.textContent = resetMsg || "Game reset. Waiting for secret...";
         setInputsEnabled(true);
-        // Clear painter canvas on reset
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
     }
@@ -523,14 +504,8 @@
         updateStatus(state);
     });
 
-    // Drawing broadcasts
-    connection.on("Stroke", seg => {
-        renderStroke(seg);
-    });
-
-    connection.on("Shape", shape => {
-        renderShape(shape);
-    });
+    connection.on("Stroke", seg => { renderStroke(seg); });
+    connection.on("Shape", shape => { renderShape(shape); });
 
     connection.on("CanvasCleared", () => {
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
@@ -559,7 +534,6 @@
             return;
         }
         setInputsEnabled(true);
-        // Ensure canvas is configured for current DPI after connection
-        setupCanvasDpi();
+        setupCanvasSize();
     })();
 })();
