@@ -101,16 +101,6 @@
                 });
                 return;
             }
-
-            const playersRes = await fetch("players");
-            if (playersRes.ok) {
-                const players = await playersRes.json();
-                players.forEach(p => {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `<td>${escapeHtml(p)}</td><td>0</td>`;
-                    resultsBody.appendChild(tr);
-                });
-            }
         } catch (e) {
             console.error("Failed to load results:", e);
             statusText.textContent = "Failed to load results.";
@@ -152,9 +142,7 @@
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === me;
 
-        // Show reset section only to the painter
         resetSection.style.display = iAmGlobalPainter ? "block" : "none";
-        // Canvas always visible, controls only to painter
         if (paintSection) paintSection.style.display = "block";
         if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
     }
@@ -185,7 +173,6 @@
         applyGlobalPainterVisibility();
     }
 
-    // Painter canvas events
     function getCanvasPos(ev) {
         const rect = paintCanvas.getBoundingClientRect();
         const clientX = ev.clientX ?? (ev.pageX - window.scrollX);
@@ -224,7 +211,6 @@
             ctx.lineTo(x, y);
             ctx.stroke();
 
-            // Throttle broadcasting stroke to others
             const now = performance.now();
             const dx = x - lastX;
             const dy = y - lastY;
@@ -283,7 +269,6 @@
             ctx.moveTo(startX, startY);
             ctx.lineTo(x, y);
             ctx.stroke();
-            // broadcast
             try {
                 await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
             } catch (e) { console.error(e); }
@@ -373,7 +358,6 @@
         });
     }
 
-    // Events
     painterBtn.addEventListener("click", async () => {
         isPainter = !isPainter;
         updatePainterUI();
@@ -404,7 +388,6 @@
         }
     });
 
-    // Submit guess and let server broadcast GuessAdded
     guessBtn.addEventListener("click", async () => {
         const guess = (guessInput.value || "").trim();
         if (!guess) return;
@@ -417,7 +400,6 @@
         }
     });
 
-    // Allow Enter key to submit guess
     guessInput.addEventListener("keydown", async (ev) => {
         if (ev.key === "Enter" && !guessBtn.disabled) {
             ev.preventDefault();
@@ -455,7 +437,6 @@
         } catch (e) { console.error(e); }
     });
 
-    // Hub events
     connection.on("PainterSelected", payload => {
         const announced = (payload && payload.painter) ? payload.painter : "";
         currentPainter = announced;
@@ -503,7 +484,6 @@
         updateStatus(state);
     });
 
-    // Drawing broadcasts
     connection.on("Stroke", seg => {
         renderStroke(seg);
     });
@@ -515,6 +495,24 @@
     connection.on("CanvasCleared", () => {
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
+    });
+
+    connection.on("ResetWithResults", async () => {
+        historyList.innerHTML = "";
+        statusText.textContent = "Game reset. Results cleared.";
+        isGameOver = false;
+        setInputsEnabled(true);
+        await populateNames();
+        await loadAndRenderResultsFromFile();
+    });
+
+    connection.on("ResetKeepResults", async () => {
+        historyList.innerHTML = "";
+        statusText.textContent = "Game reset. Results kept.";
+        isGameOver = false;
+        setInputsEnabled(true);
+        await populateNames();
+        await loadAndRenderResultsFromFile();
     });
 
     function updateStatus(state) {
