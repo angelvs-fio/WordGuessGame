@@ -45,6 +45,11 @@
     let startX = 0, startY = 0; // for shapes
     let baseImage = null; // ImageData for preview
 
+    // Throttling for freehand stroke sending
+    let lastStrokeSentTs = 0;
+    const STROKE_SEND_INTERVAL_MS = 16; // ~60fps
+    const STROKE_MIN_DISTANCE = 0.5; // ignore tiny moves
+
     // Load players into dropdown
     async function populateNames() {
         try {
@@ -198,6 +203,8 @@
         startX = x; startY = y;
         // save base image for shape preview
         baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
+        // reset stroke throttling
+        lastStrokeSentTs = performance.now();
     }
 
     async function draw(ev) {
@@ -217,11 +224,19 @@
             ctx.lineTo(x, y);
             ctx.stroke();
 
-            // Broadcast stroke to others
-            try {
-                await connection.invoke("DrawStroke", getUser(), lastX, lastY, x, y, color, size);
-            } catch (e) {
-                console.error(e);
+            // Throttle broadcasting stroke to others
+            const now = performance.now();
+            const dx = x - lastX;
+            const dy = y - lastY;
+            const dist2 = dx * dx + dy * dy;
+            if (now - lastStrokeSentTs >= STROKE_SEND_INTERVAL_MS && dist2 >= STROKE_MIN_DISTANCE * STROKE_MIN_DISTANCE) {
+                try {
+                    // Fire-and-forget to avoid backpressure
+                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
+                    lastStrokeSentTs = now;
+                } catch (e) {
+                    console.error(e);
+                }
             }
 
             lastX = x; lastY = y;
