@@ -1,0 +1,51 @@
+# Visual Studio / .NET
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Rider/JetBrains
+.idea/
+*.iml
+
+# Logs
+*.log
+
+# NuGet
+**/packages/
+# Uncomment if you use packages cache inside repo
+# *.nupkg
+
+# Resharper
+_Resharper*/
+*.[Rr]e[Ss]harper
+
+# Azure
+.localsettings.json
+
+# Publish output
+**/out/
+
+# Coverage
+coverage/
+*.coverage*
+
+# Node (if frontend assets)
+node_modules/
+
+# Docker
+*.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tooling
+.appmod/
