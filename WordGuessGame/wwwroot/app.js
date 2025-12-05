@@ -152,6 +152,11 @@
         // Canvas always visible, controls only to painter
         if (paintSection) paintSection.style.display = "block";
         if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
+
+        // Hide painter button for all non-painter clients once a painter is selected
+        if (painterBtn) {
+            painterBtn.style.display = (someoneIsPainter && !iAmGlobalPainter) ? "none" : (hasSelectedName() ? "none" : "inline-block");
+        }
     }
 
     function setInputsEnabled(enabled) {
@@ -174,8 +179,7 @@
             statusText.textContent = "Select your name to start guessing.";
         }
 
-        painterBtn.style.display = nameSelected ? "none" : "inline-block";
-
+        // painterBtn visibility handled in applyGlobalPainterVisibility
         updatePainterUI();
         applyGlobalPainterVisibility();
     }
@@ -252,8 +256,15 @@
     async function endDraw(ev) {
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         drawing = false;
-        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
-        const { x, y } = getCanvasPos(pointEv);
+        // Determine canvas coordinates correctly. If we don't have a real pointer event,
+        // use the last known canvas coordinates directly instead of mapping client coords.
+        let x, y;
+        if (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) {
+            const pos = getCanvasPos(ev);
+            x = pos.x; y = pos.y;
+        } else {
+            x = lastX; y = lastY;
+        }
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
         const tool = paintTool ? paintTool.value : "freehand";
@@ -495,6 +506,19 @@
     connection.on("CanvasCleared", () => {
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
+    });
+
+    // handle reset broadcasts so all clients clear history and refresh
+    connection.on("ResetWithResults", async () => {
+        setResetStatus("Game reset. Results cleared.");
+        await populateNames();
+        await loadAndRenderResultsFromFile();
+    });
+
+    connection.on("ResetKeepResults", async () => {
+        setResetStatus("Game reset. Results kept.");
+        await populateNames();
+        await loadAndRenderResultsFromFile();
     });
 
     function updateStatus(state) {
