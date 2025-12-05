@@ -35,6 +35,33 @@
     const paintClearBtn = document.getElementById("paintClearBtn");
     const ctx = paintCanvas ? paintCanvas.getContext("2d") : null;
 
+    // Ensure canvas accounts for device pixel ratio to avoid short/stepped lines
+    function setupCanvasDpi() {
+        if (!paintCanvas || !ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+        const rect = paintCanvas.getBoundingClientRect();
+        // Set the canvas size in actual pixels
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(rect.height * dpr));
+        if (paintCanvas.width !== width || paintCanvas.height !== height) {
+            // Save existing drawing
+            const oldImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
+            paintCanvas.width = width;
+            paintCanvas.height = height;
+            // Scale the context so drawing uses CSS pixels
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+            // Restore if possible (best-effort)
+            try { ctx.putImageData(oldImage, 0, 0); } catch { /* ignore */ }
+        } else {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+        }
+        // Improve joint rendering
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+    }
+
     // State
     let isGameOver = false;
     let isPainter = false;
@@ -152,11 +179,6 @@
         // Canvas always visible, controls only to painter
         if (paintSection) paintSection.style.display = "block";
         if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
-
-        // Hide painter button for all non-painter clients once a painter is selected
-        if (painterBtn) {
-            painterBtn.style.display = (someoneIsPainter && !iAmGlobalPainter) ? "none" : (hasSelectedName() ? "none" : "inline-block");
-        }
     }
 
     function setInputsEnabled(enabled) {
@@ -179,14 +201,19 @@
             statusText.textContent = "Select your name to start guessing.";
         }
 
-        // painterBtn visibility handled in applyGlobalPainterVisibility
+        painterBtn.style.display = nameSelected ? "none" : "inline-block";
+
         updatePainterUI();
         applyGlobalPainterVisibility();
     }
 
     // Painter canvas events
-    function getCanvasPos(ev) {
+    function getCanvasPos(ev, isCanvasCoords = false) {
         const rect = paintCanvas.getBoundingClientRect();
+        if (isCanvasCoords) {
+            // Coordinates are already in canvas CSS-space
+            return { x: ev.x, y: ev.y };
+        }
         const clientX = ev.clientX ?? (ev.pageX - window.scrollX);
         const clientY = ev.clientY ?? (ev.pageY - window.scrollY);
         const x = (clientX - rect.left) * (paintCanvas.width / rect.width);
@@ -196,6 +223,8 @@
 
     function beginDraw(ev) {
         if (!ctx || !isPainter) return;
+        // Ensure DPI setup before drawing
+        setupCanvasDpi();
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
@@ -216,6 +245,7 @@
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
+            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(x, y);
@@ -256,15 +286,14 @@
     async function endDraw(ev) {
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         drawing = false;
-        // Determine canvas coordinates correctly. If we don't have a real pointer event,
-        // use the last known canvas coordinates directly instead of mapping client coords.
-        let x, y;
+        // If no event coordinates provided (e.g., window mouseup), use last canvas coords directly
+        let pos;
         if (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) {
-            const pos = getCanvasPos(ev);
-            x = pos.x; y = pos.y;
+            pos = getCanvasPos(ev);
         } else {
-            x = lastX; y = lastY;
+            pos = getCanvasPos({ x: lastX, y: lastY }, true);
         }
+        const { x, y } = pos;
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
         const tool = paintTool ? paintTool.value : "freehand";
@@ -275,6 +304,7 @@
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
+            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             ctx.lineTo(x, y);
@@ -315,6 +345,7 @@
         ctx.strokeStyle = seg.color || "#000";
         ctx.lineWidth = Number(seg.size) || 4;
         ctx.lineCap = "round";
+        ctx.lineJoin = "round";
         ctx.beginPath();
         ctx.moveTo(seg.x1, seg.y1);
         ctx.lineTo(seg.x2, seg.y2);
@@ -331,6 +362,7 @@
         ctx.lineWidth = size;
         if (type === "line") {
             ctx.lineCap = "round";
+            ctx.lineJoin = "round";
             ctx.beginPath();
             ctx.moveTo(p.x1, p.y1);
             ctx.lineTo(p.x2, p.y2);
@@ -345,6 +377,10 @@
     }
 
     if (paintCanvas && ctx) {
+        // Initial DPI setup and adjust on resize
+        setupCanvasDpi();
+        window.addEventListener("resize", setupCanvasDpi);
+
         paintCanvas.addEventListener("mousedown", beginDraw);
         paintCanvas.addEventListener("mousemove", draw);
         window.addEventListener("mouseup", endDraw);
@@ -508,19 +544,6 @@
         baseImage = null;
     });
 
-    // handle reset broadcasts so all clients clear history and refresh
-    connection.on("ResetWithResults", async () => {
-        setResetStatus("Game reset. Results cleared.");
-        await populateNames();
-        await loadAndRenderResultsFromFile();
-    });
-
-    connection.on("ResetKeepResults", async () => {
-        setResetStatus("Game reset. Results kept.");
-        await populateNames();
-        await loadAndRenderResultsFromFile();
-    });
-
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
         if (!state.hasSecret && !isGameOver) statusText.textContent = "Waiting for secret...";
@@ -543,5 +566,7 @@
             return;
         }
         setInputsEnabled(true);
+        // Ensure canvas is configured for current DPI after connection
+        setupCanvasDpi();
     })();
 })();

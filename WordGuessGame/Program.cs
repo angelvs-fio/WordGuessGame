@@ -62,10 +62,6 @@ builder.Services.AddSingleton<GameService>(sp =>
 
 var app = builder.Build();
 
-// Bind to PORT for Render (default 8080)
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-app.Urls.Add($"http://0.0.0.0:{port}");
-
 // Only enforce HTTPS/HSTS in production; allow HTTP on LAN during development
 if (!app.Environment.IsDevelopment())
 {
