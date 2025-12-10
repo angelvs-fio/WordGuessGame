@@ -83,12 +83,13 @@ app.MapGet("/health", () => Results.Json(new { status = "ok" }));
 // Serve players as-is (already ordered when loaded from results.json)
 app.MapGet("/players", (PlayerRegistry reg) => Results.Json(reg.Players));
 
-// Serve results ordered by name ascending
+// Serve results ordered by name ascending and include last winner flag
 app.MapGet("/results", (GameService svc) =>
 {
     var points = svc.GetResults();
+    var lastWinner = svc.GetLastWinner();
     var ordered = points.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                        .Select(kv => new { name = kv.Key, points = kv.Value });
+                        .Select(kv => new { name = kv.Key, points = kv.Value, isLastWinner = string.Equals(kv.Key, lastWinner, StringComparison.Ordinal) });
     return Results.Json(ordered);
 });
 
@@ -107,7 +108,8 @@ public class GuessHub(GameService service) : Hub
             hasSecret = _svc.HasSecret,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
-            stats = _svc.GetStats()
+            stats = _svc.GetStats(),
+            lastWinner = _svc.GetLastWinner()
         });
 
         // Inform caller who is the current painter
@@ -220,6 +222,7 @@ public class GuessHub(GameService service) : Hub
             hasSecret = _svc.HasSecret,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
-            stats = _svc.GetStats()
+            stats = _svc.GetStats(),
+            lastWinner = _svc.GetLastWinner()
         });
 }

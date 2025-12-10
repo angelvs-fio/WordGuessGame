@@ -95,8 +95,9 @@
 
             if (Array.isArray(items) && items.length > 0) {
                 items.forEach(x => {
+                    const crown = x.isLastWinner ? " 👑" : "";
                     const tr = document.createElement("tr");
-                    tr.innerHTML = `<td>${escapeHtml(x.name)}</td><td>${x.points}</td>`;
+                    tr.innerHTML = `<td>${escapeHtml(x.name)}${crown}</td><td>${x.points}</td>`;
                     resultsBody.appendChild(tr);
                 });
                 return;
@@ -476,7 +477,7 @@
 
     connection.on("GameOver", async payload => {
         isGameOver = true;
-        statusText.textContent = `Game over! Winner: ${payload.winner}`;
+        statusText.textContent = `Congratulations! The winner is ${payload.winner}!`;
         setInputsEnabled(false);
         await loadAndRenderResultsFromFile();
     });
@@ -518,9 +519,14 @@
 
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
-        if (!state.hasSecret && !isGameOver) statusText.textContent = "Waiting for secret...";
-        else if (state.hasSecret && !isGameOver) statusText.textContent = "Secret set. Keep guessing!";
-        else statusText.textContent = "Game over. Use Reset buttons.";
+        if (!state.hasSecret && !isGameOver) {
+            statusText.textContent = "Waiting for secret...";
+        } else if (state.hasSecret && !isGameOver) {
+            statusText.textContent = "Secret set. Keep guessing!";
+        } else {
+            const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
+            statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
+        }
         setInputsEnabled(!isGameOver);
     }
 

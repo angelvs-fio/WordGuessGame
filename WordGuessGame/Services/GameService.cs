@@ -9,6 +9,7 @@ public sealed class GameService
 {
     private readonly object _lock = new();
     private readonly string _resultsPath;
+    private readonly string _lastWinnerPath; // store last winner alongside results
     private readonly PlayerRegistry _reg;
 
     private string? _secretWord;
@@ -21,6 +22,8 @@ public sealed class GameService
     public GameService(string resultsPath, PlayerRegistry reg)
     {
         _resultsPath = resultsPath;
+        var dir = Path.GetDirectoryName(resultsPath) ?? string.Empty;
+        _lastWinnerPath = Path.Combine(dir, "lastwinner.txt");
         _reg = reg;
         EnsureResultsFile();
     }
@@ -108,6 +111,33 @@ public sealed class GameService
             dict[winner] = 0;
         dict[winner] += 1;
         WriteResults(dict);
+        SetLastWinner(winner);
+    }
+
+    public string? GetLastWinner()
+    {
+        try
+        {
+            if (!File.Exists(_lastWinnerPath)) return null;
+            var text = File.ReadAllText(_lastWinnerPath).Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private void SetLastWinner(string winner)
+    {
+        try
+        {
+            File.WriteAllText(_lastWinnerPath, winner);
+        }
+        catch
+        {
+            // ignore persistence failures for last winner
+        }
     }
 
     private void ResetResultsToZero()
@@ -136,7 +166,6 @@ public sealed class GameService
         }
         catch
         {
-            // Fallback to empty if file is corrupted
             return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
     }
