@@ -30,7 +30,7 @@ public sealed class GameService
     {
         _store = store;
         _reg = reg;
-        EnsureResultsInitialized();
+        EnsurePlayersPersisted();
     }
 
     public bool IsGameOver => _isGameOver;
@@ -104,8 +104,16 @@ public sealed class GameService
     public IDictionary<string, int> GetResults()
     {
         var dict = _store.GetResults();
+        bool changed = false;
         foreach (var p in _reg.Players)
-            if (!dict.ContainsKey(p)) dict[p] = 0;
+        {
+            if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+        }
+        if (changed)
+        {
+            // Persist any missing players with zero scores
+            _store.WriteResults(dict);
+        }
         return dict;
     }
 
@@ -127,12 +135,23 @@ public sealed class GameService
         _store.WriteResults(dict);
     }
 
-    private void EnsureResultsInitialized()
+    private void EnsurePlayersPersisted()
     {
-        var current = _store.GetResults();
-        if (current.Count == 0 && _reg.Players.Length > 0)
+        var dict = _store.GetResults();
+        if (dict.Count == 0 && _reg.Players.Length > 0)
         {
+            // Seed all players with zero points
             ResetResultsToZero();
+            return;
+        }
+        bool changed = false;
+        foreach (var p in _reg.Players)
+        {
+            if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+        }
+        if (changed)
+        {
+            _store.WriteResults(dict);
         }
     }
 }
