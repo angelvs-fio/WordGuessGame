@@ -25,19 +25,32 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 
-// Persistence store selection: prefer Redis if configured
-var redisConn = builder.Configuration["REDIS_URL"] ?? builder.Configuration["REDIS_CONNECTION"] ?? builder.Configuration.GetConnectionString("Redis");
-var forceSsl = bool.TryParse(builder.Configuration["REDIS_SSL"], out var sslFlag) && sslFlag;
+// Persistence store selection: prefer Upstash if configured, else file
+var upstashUrl = builder.Configuration["UPSTASH_REDIS_REST_URL"];
+var upstashToken = builder.Configuration["UPSTASH_REDIS_REST_TOKEN"];
 
 builder.Services.AddSingleton<IResultsStore>(sp =>
 {
-    if (!string.IsNullOrWhiteSpace(redisConn))
+    var loggerFactory = sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>();
+    var logger = loggerFactory?.CreateLogger("Startup");
+
+    if (!string.IsNullOrWhiteSpace(upstashUrl) && !string.IsNullOrWhiteSpace(upstashToken))
     {
-        return new RedisResultsStore(redisConn);
+        try
+        {
+            var store = new UpstashResultsStore(upstashUrl!, upstashToken!);
+            logger?.LogInformation("Using Upstash Redis REST results store.");
+            return store;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to initialize Upstash store; falling back to file store.");
+        }
     }
 
     var env = sp.GetRequiredService<IHostEnvironment>();
     var resultsPath = Path.Combine(env.ContentRootPath, "results.json");
+    logger?.LogInformation("Using file results store at {path}.", resultsPath);
     return new FileResultsStore(resultsPath);
 });
 
