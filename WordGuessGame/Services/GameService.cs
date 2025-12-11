@@ -5,11 +5,18 @@ using WordGuessGame.Models.Enums;
 
 namespace WordGuessGame.Services;
 
+public interface IResultsStore
+{
+    IDictionary<string, int> GetResults();
+    void WriteResults(IDictionary<string, int> dict);
+    string? GetLastWinner();
+    void SetLastWinner(string winner);
+}
+
 public sealed class GameService
 {
     private readonly object _lock = new();
-    private readonly string _resultsPath;
-    private readonly string _lastWinnerPath; // store last winner alongside results
+    private readonly IResultsStore _store;
     private readonly PlayerRegistry _reg;
 
     private string? _secretWord;
@@ -19,13 +26,11 @@ public sealed class GameService
 
     private static readonly JsonSerializerOptions _opts = new() { WriteIndented = true };
 
-    public GameService(string resultsPath, PlayerRegistry reg)
+    public GameService(IResultsStore store, PlayerRegistry reg)
     {
-        _resultsPath = resultsPath;
-        var dir = Path.GetDirectoryName(resultsPath) ?? string.Empty;
-        _lastWinnerPath = Path.Combine(dir, "lastwinner.txt");
+        _store = store;
         _reg = reg;
-        EnsureResultsFile();
+        EnsureResultsInitialized();
     }
 
     public bool IsGameOver => _isGameOver;
@@ -98,7 +103,7 @@ public sealed class GameService
     // Results persistence
     public IDictionary<string, int> GetResults()
     {
-        var dict = ReadResults();
+        var dict = _store.GetResults();
         foreach (var p in _reg.Players)
             if (!dict.ContainsKey(p)) dict[p] = 0;
         return dict;
@@ -106,75 +111,28 @@ public sealed class GameService
 
     public void IncrementPoint(string winner)
     {
-        var dict = ReadResults();
+        var dict = _store.GetResults();
         if (!dict.ContainsKey(winner))
             dict[winner] = 0;
         dict[winner] += 1;
-        WriteResults(dict);
-        SetLastWinner(winner);
+        _store.WriteResults(dict);
+        _store.SetLastWinner(winner);
     }
 
-    public string? GetLastWinner()
-    {
-        try
-        {
-            if (!File.Exists(_lastWinnerPath)) return null;
-            var text = File.ReadAllText(_lastWinnerPath).Trim();
-            return string.IsNullOrWhiteSpace(text) ? null : text;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void SetLastWinner(string winner)
-    {
-        try
-        {
-            File.WriteAllText(_lastWinnerPath, winner);
-        }
-        catch
-        {
-            // ignore persistence failures for last winner
-        }
-    }
+    public string? GetLastWinner() => _store.GetLastWinner();
 
     private void ResetResultsToZero()
     {
         var dict = _reg.Players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
-        WriteResults(dict);
+        _store.WriteResults(dict);
     }
 
-    private void EnsureResultsFile()
+    private void EnsureResultsInitialized()
     {
-        if (!File.Exists(_resultsPath))
+        var current = _store.GetResults();
+        if (current.Count == 0 && _reg.Players.Length > 0)
+        {
             ResetResultsToZero();
-    }
-
-    private Dictionary<string, int> ReadResults()
-    {
-        try
-        {
-            if (!File.Exists(_resultsPath))
-                return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            using var fs = File.OpenRead(_resultsPath);
-            var dict = JsonSerializer.Deserialize<Dictionary<string, int>>(fs)
-                       ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            return new Dictionary<string, int>(dict, StringComparer.OrdinalIgnoreCase);
         }
-        catch
-        {
-            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private void WriteResults(IDictionary<string, int> dict)
-    {
-        var ordered = dict.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                          .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
-        var json = JsonSerializer.Serialize(ordered, _opts);
-        File.WriteAllText(_resultsPath, json);
     }
 }

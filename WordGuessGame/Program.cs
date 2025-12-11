@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.Text.Json;
 using WordGuessGame.Models;
 using WordGuessGame.Models.Enums;
 using WordGuessGame.Services;
@@ -26,38 +25,58 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 
-// Load players from results.json (use dictionary keys as player names)
-builder.Services.AddSingleton<PlayerRegistry>(sp =>
+// Persistence store selection: prefer Redis if configured
+var redisConn = builder.Configuration["REDIS_URL"] ?? builder.Configuration["REDIS_CONNECTION"] ?? builder.Configuration.GetConnectionString("Redis");
+var redisHost = builder.Configuration["REDIS_HOST"];
+var redisPort = builder.Configuration["REDIS_PORT"];
+var redisUser = builder.Configuration["REDIS_USER"];
+var redisPassword = builder.Configuration["REDIS_PASSWORD"];
+
+builder.Services.AddSingleton<IResultsStore>(sp =>
 {
+    if (!string.IsNullOrWhiteSpace(redisConn))
+    {
+        return new RedisResultsStore(redisConn);
+    }
+    if (!string.IsNullOrWhiteSpace(redisHost) && int.TryParse(redisPort, out var port))
+    {
+        var options = new StackExchange.Redis.ConfigurationOptions
+        {
+            User = redisUser,
+            Password = redisPassword
+        };
+        options.EndPoints.Add(redisHost, port);
+        // If TLS is needed, you can set: options.Ssl = true;
+        return new RedisResultsStore(options);
+    }
+
     var env = sp.GetRequiredService<IHostEnvironment>();
     var resultsPath = Path.Combine(env.ContentRootPath, "results.json");
-    string[] playersFromResults = Array.Empty<string>();
+    return new FileResultsStore(resultsPath);
+});
 
+// Load players from results (use keys as player names)
+builder.Services.AddSingleton<PlayerRegistry>(sp =>
+{
+    var store = sp.GetRequiredService<IResultsStore>();
+    string[] playersFromResults;
     try
     {
-        if (File.Exists(resultsPath))
-        {
-            var json = File.ReadAllText(resultsPath);
-            // results.json is a name->points dictionary
-            var dict = JsonSerializer.Deserialize<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
-            playersFromResults = dict.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
-        }
+        var dict = store.GetResults();
+        playersFromResults = dict.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
     }
     catch
     {
-        // If parsing fails, fall back to empty list
         playersFromResults = Array.Empty<string>();
     }
-
     return new PlayerRegistry(playersFromResults);
 });
 
 builder.Services.AddSingleton<GameService>(sp =>
 {
-    var env = sp.GetRequiredService<IHostEnvironment>();
+    var store = sp.GetRequiredService<IResultsStore>();
     var reg = sp.GetRequiredService<PlayerRegistry>();
-    var resultsPath = Path.Combine(env.ContentRootPath, "results.json");
-    return new GameService(resultsPath, reg);
+    return new GameService(store, reg);
 });
 
 var app = builder.Build();
@@ -80,7 +99,7 @@ app.MapHub<GuessHub>("/hub/guess");
 // Health endpoint
 app.MapGet("/health", () => Results.Json(new { status = "ok" }));
 
-// Serve players as-is (already ordered when loaded from results.json)
+// Serve players as-is (already ordered when loaded from results store)
 app.MapGet("/players", (PlayerRegistry reg) => Results.Json(reg.Players));
 
 // Serve results ordered by name ascending and include last winner flag
