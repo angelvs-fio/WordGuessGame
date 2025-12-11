@@ -175,3 +175,12 @@ h2 {
     background: #dc2626; /* red */
     color: #ffffff;      /* white */
 }
+
+/* Results table: fix points column width (3 digits + padding) and align right */
+#resultsTable th:nth-child(2),
+#resultsTable td:nth-child(2) {
+    width: 64px;         /* enough for 3 digits */
+    min-width: 64px;
+    white-space: nowrap; /* keep header label intact */
+    text-align: right;   /* align numbers to the right */
+}
