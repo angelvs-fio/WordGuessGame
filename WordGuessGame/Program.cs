@@ -27,10 +27,7 @@ builder.Services.AddSignalR();
 
 // Persistence store selection: prefer Redis if configured
 var redisConn = builder.Configuration["REDIS_URL"] ?? builder.Configuration["REDIS_CONNECTION"] ?? builder.Configuration.GetConnectionString("Redis");
-var redisHost = builder.Configuration["REDIS_HOST"];
-var redisPort = builder.Configuration["REDIS_PORT"];
-var redisUser = builder.Configuration["REDIS_USER"];
-var redisPassword = builder.Configuration["REDIS_PASSWORD"];
+var forceSsl = bool.TryParse(builder.Configuration["REDIS_SSL"], out var sslFlag) && sslFlag;
 
 builder.Services.AddSingleton<IResultsStore>(sp =>
 {
@@ -38,24 +35,23 @@ builder.Services.AddSingleton<IResultsStore>(sp =>
     {
         return new RedisResultsStore(redisConn);
     }
-    if (!string.IsNullOrWhiteSpace(redisHost) && int.TryParse(redisPort, out var port))
-    {
-        var options = new StackExchange.Redis.ConfigurationOptions
-        {
-            User = redisUser,
-            Password = redisPassword
-        };
-        options.EndPoints.Add(redisHost, port);
-        // If TLS is needed, you can set: options.Ssl = true;
-        return new RedisResultsStore(options);
-    }
 
     var env = sp.GetRequiredService<IHostEnvironment>();
     var resultsPath = Path.Combine(env.ContentRootPath, "results.json");
     return new FileResultsStore(resultsPath);
 });
 
-// Load players from results (use keys as player names)
+// Optional seed players via environment variable PLAYERS (comma-separated)
+var seedPlayersEnv = builder.Configuration["PLAYERS"];
+var seedPlayers = string.IsNullOrWhiteSpace(seedPlayersEnv)
+    ? Array.Empty<string>()
+    : seedPlayersEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+// Load players from results (use keys as player names), or fall back to seed list
 builder.Services.AddSingleton<PlayerRegistry>(sp =>
 {
     var store = sp.GetRequiredService<IResultsStore>();
@@ -69,6 +65,12 @@ builder.Services.AddSingleton<PlayerRegistry>(sp =>
     {
         playersFromResults = Array.Empty<string>();
     }
+
+    if (playersFromResults.Length == 0 && seedPlayers.Length > 0)
+    {
+        playersFromResults = seedPlayers;
+    }
+
     return new PlayerRegistry(playersFromResults);
 });
 

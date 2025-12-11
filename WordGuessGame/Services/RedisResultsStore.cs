@@ -11,7 +11,12 @@ public sealed class RedisResultsStore : IResultsStore, IDisposable
 
     public RedisResultsStore(string connectionString, string prefix = "wordguess")
     {
-        _redis = ConnectionMultiplexer.Connect(connectionString);
+        // Parse to options so we can enforce AbortOnConnectFail=false and handle TLS
+        var options = ConfigurationOptions.Parse(connectionString);
+        options.AbortOnConnectFail = false; // continue retrying
+        // If connection string used rediss:// scheme, Parse usually sets Ssl=true.
+        // If not set and provider requires TLS, allow enabling via env string (ssl=true) or leave as-is.
+        _redis = ConnectionMultiplexer.Connect(options);
         _db = _redis.GetDatabase();
         _scoresKey = $"{prefix}:scores";
         _lastWinnerKey = $"{prefix}:lastwinner";
@@ -19,6 +24,7 @@ public sealed class RedisResultsStore : IResultsStore, IDisposable
 
     public RedisResultsStore(ConfigurationOptions options, string prefix = "wordguess")
     {
+        options.AbortOnConnectFail = false; // continue retrying
         _redis = ConnectionMultiplexer.Connect(options);
         _db = _redis.GetDatabase();
         _scoresKey = $"{prefix}:scores";
