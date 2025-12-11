@@ -1,5 +1,4 @@
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -13,7 +12,6 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _token;
     private readonly string _scoresKey;
     private readonly string _lastWinnerKey;
-    private static readonly JsonSerializerOptions _jsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -29,7 +27,6 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     {
         try
         {
-            // HGETALL returns array like [field, value, field, value]
             var url = $"{_baseUrl}/hgetall/{Uri.EscapeDataString(_scoresKey)}";
             var resp = _http.GetAsync(url).GetAwaiter().GetResult();
             if (!resp.IsSuccessStatusCode)
@@ -41,13 +38,30 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
             var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             if (result.ValueKind == JsonValueKind.Array)
             {
-                var arr = result.EnumerateArray().ToArray();
-                for (int i = 0; i + 1 < arr.Length; i += 2)
+                // Two possible formats: flat array [field, value, ...] or array of arrays [[field, value], ...]
+                if (result.GetArrayLength() > 0 && result[0].ValueKind == JsonValueKind.Array)
                 {
-                    var name = arr[i].GetString() ?? string.Empty;
-                    var valStr = arr[i + 1].GetString();
-                    if (!string.IsNullOrEmpty(name) && int.TryParse(valStr, out var val))
-                        dict[name] = val;
+                    foreach (var pair in result.EnumerateArray())
+                    {
+                        if (pair.ValueKind == JsonValueKind.Array && pair.GetArrayLength() >= 2)
+                        {
+                            var name = pair[0].GetString();
+                            var valStr = pair[1].GetString();
+                            if (!string.IsNullOrEmpty(name) && int.TryParse(valStr, out var val))
+                                dict[name] = val;
+                        }
+                    }
+                }
+                else
+                {
+                    var arr = result.EnumerateArray().ToArray();
+                    for (int i = 0; i + 1 < arr.Length; i += 2)
+                    {
+                        var name = arr[i].GetString() ?? string.Empty;
+                        var valStr = arr[i + 1].GetString();
+                        if (!string.IsNullOrEmpty(name) && int.TryParse(valStr, out var val))
+                            dict[name] = val;
+                    }
                 }
             }
             return dict;
@@ -64,21 +78,25 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         {
             if (dict.Count == 0)
             {
-                // DEL key
                 var urlDel = $"{_baseUrl}/del/{Uri.EscapeDataString(_scoresKey)}";
                 _http.PostAsync(urlDel, null).GetAwaiter().GetResult();
                 return;
             }
-            // HSET key field value ...
-            var url = $"{_baseUrl}/hset/{Uri.EscapeDataString(_scoresKey)}";
-            var contentFields = new List<string>();
+            // Build HSET URL with path segments: /hset/key/field/value/field/value...
+            var segments = new List<string>
+            {
+                _baseUrl.TrimEnd('/'),
+                "hset",
+                Uri.EscapeDataString(_scoresKey)
+            };
             foreach (var kv in dict)
             {
-                contentFields.Add(Uri.EscapeDataString(kv.Key));
-                contentFields.Add(Uri.EscapeDataString(kv.Value.ToString()));
+                segments.Add(Uri.EscapeDataString(kv.Key));
+                segments.Add(Uri.EscapeDataString(kv.Value.ToString()))
+                ;
             }
-            var body = new StringContent(string.Join('/', contentFields), Encoding.UTF8, "text/plain");
-            _http.PostAsync(url, body).GetAwaiter().GetResult();
+            var url = string.Join('/', segments);
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
         }
         catch
         {
