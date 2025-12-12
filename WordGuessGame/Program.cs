@@ -65,10 +65,38 @@ var seedPlayers = string.IsNullOrWhiteSpace(seedPlayersEnv)
                     .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-// Load players from results (use keys as player names), or fall back to seed list
+// Sync results store with PLAYERS list if provided: keep scores for listed players,
+// add missing with 0, and remove any not listed.
 builder.Services.AddSingleton<PlayerRegistry>(sp =>
 {
     var store = sp.GetRequiredService<IResultsStore>();
+
+    // If PLAYERS is provided, use it as the source of truth and sync Redis
+    if (seedPlayers.Length > 0)
+    {
+        try
+        {
+            var current = store.GetResults();
+            // Keep only players in PLAYERS, preserving existing scores
+            var synced = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in seedPlayers)
+            {
+                if (current.TryGetValue(p, out var score))
+                    synced[p] = score; // preserve
+                else
+                    synced[p] = 0; // add new
+            }
+            // Write back the synced set (removes any not in PLAYERS)
+            store.WriteResults(synced);
+        }
+        catch
+        {
+            // ignore sync errors; registry will still use PLAYERS
+        }
+        return new PlayerRegistry(seedPlayers);
+    }
+
+    // No PLAYERS provided: load players from results (use keys as player names)
     string[] playersFromResults;
     try
     {
@@ -78,11 +106,6 @@ builder.Services.AddSingleton<PlayerRegistry>(sp =>
     catch
     {
         playersFromResults = Array.Empty<string>();
-    }
-
-    if (playersFromResults.Length == 0 && seedPlayers.Length > 0)
-    {
-        playersFromResults = seedPlayers;
     }
 
     return new PlayerRegistry(playersFromResults);
@@ -115,7 +138,7 @@ app.MapHub<GuessHub>("/hub/guess");
 // Health endpoint
 app.MapGet("/health", () => Results.Json(new { status = "ok" }));
 
-// Serve players as-is (already ordered when loaded from results store)
+// Serve players as-is (already ordered when loaded from results store or PLAYERS)
 app.MapGet("/players", (PlayerRegistry reg) => Results.Json(reg.Players));
 
 // Serve results ordered by name ascending and include last winner flag
