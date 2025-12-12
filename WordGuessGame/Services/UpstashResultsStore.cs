@@ -12,6 +12,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _token;
     private readonly string _scoresKey;
     private readonly string _lastWinnerKey;
+    private readonly string _activePlayersKey;
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -19,6 +20,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         _token = token;
         _scoresKey = $"{prefix}:scores";
         _lastWinnerKey = $"{prefix}:lastwinner";
+        _activePlayersKey = $"{prefix}:active";
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
@@ -76,10 +78,12 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     {
         try
         {
+            // Always reset the hash to ensure removed players don't linger
+            var urlDel = $"{_baseUrl}/del/{Uri.EscapeDataString(_scoresKey)}";
+            _http.PostAsync(urlDel, null).GetAwaiter().GetResult();
+
             if (dict.Count == 0)
             {
-                var urlDel = $"{_baseUrl}/del/{Uri.EscapeDataString(_scoresKey)}";
-                _http.PostAsync(urlDel, null).GetAwaiter().GetResult();
                 return;
             }
             // Build HSET URL with path segments: /hset/key/field/value/field/value...
@@ -92,8 +96,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
             foreach (var kv in dict)
             {
                 segments.Add(Uri.EscapeDataString(kv.Key));
-                segments.Add(Uri.EscapeDataString(kv.Value.ToString()))
-                ;
+                segments.Add(Uri.EscapeDataString(kv.Value.ToString()));
             }
             var url = string.Join('/', segments);
             _http.PostAsync(url, null).GetAwaiter().GetResult();
@@ -128,6 +131,50 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
             _http.PostAsync(url, null).GetAwaiter().GetResult();
         }
         catch { /* ignore */ }
+    }
+
+    // Active players management using Redis Set
+    public void AddActivePlayer(string name)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            var url = $"{_baseUrl}/sadd/{Uri.EscapeDataString(_activePlayersKey)}/{Uri.EscapeDataString(name)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public void RemoveActivePlayer(string name)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            var url = $"{_baseUrl}/srem/{Uri.EscapeDataString(_activePlayersKey)}/{Uri.EscapeDataString(name)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public string[] GetActivePlayers()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/smembers/{Uri.EscapeDataString(_activePlayersKey)}";
+            var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            if (!resp.IsSuccessStatusCode) return Array.Empty<string>();
+            var json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result)) return Array.Empty<string>();
+            if (result.ValueKind != JsonValueKind.Array) return Array.Empty<string>();
+            return result.EnumerateArray()
+                .Select(e => e.GetString() ?? string.Empty)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch { return Array.Empty<string>(); }
     }
 
     public void Dispose()
