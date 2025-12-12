@@ -478,6 +478,42 @@
         });
     }
 
+    function renderStroke(seg) {
+        if (!ctx || !seg) return;
+        const color = seg.color || "#000";
+        const size = Number(seg.size) || 4;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = size;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+        ctx.stroke();
+    }
+
+    function renderShape(shape) {
+        if (!ctx || !shape) return;
+        const type = shape.type;
+        const p = shape.payload || {};
+        const color = p.color || "#000";
+        const size = Number(p.size) || 4;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = size;
+        if (type === "line") {
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(p.x1, p.y1);
+            ctx.lineTo(p.x2, p.y2);
+            ctx.stroke();
+        } else if (type === "rect") {
+            ctx.strokeRect(p.x, p.y, p.w, p.h);
+        } else if (type === "circle") {
+            ctx.beginPath();
+            ctx.arc(p.cx, p.cy, p.r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    }
+
     // Startup
     connection.start()
         .then(async () => {
