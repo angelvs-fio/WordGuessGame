@@ -17,7 +17,7 @@
                 <section class="user" id="userSection">
                     <!-- Painter toggle button -->
                     <div class="inline" style="margin-top:8px;">
-                        <button id="painterBtn" class="toggle-btn" aria-pressed="false">I am the painter</button>
+                        <button id="painterBtn" class="toggle-btn" aria-pressed="false" type="button">I am the painter</button>
                     </div>
                     <div id="userNameRow" class="inline">
                         <select id="userName">
@@ -30,7 +30,7 @@
                     <h2>Painter's Secret</h2>
                     <div class="inline">
                         <input id="secretInput" type="text" placeholder="Enter secret word (visible)" />
-                        <button id="setSecretBtn">Set Secret</button>
+                        <button id="setSecretBtn" type="button">Set Secret</button>
                     </div>
                     <small class="hint">Only the painter should set the secret.</small>
                 </section>
@@ -39,7 +39,7 @@
                     <h2>Make a Guess</h2>
                     <div class="inline">
                         <input id="guessInput" type="text" placeholder="Type your guess" />
-                        <button id="guessBtn">Guess</button>
+                        <button id="guessBtn" type="button">Guess</button>
                     </div>
                 </section>
 
@@ -68,7 +68,7 @@
                                 Size:
                                 <input id="paintSize" type="range" min="1" max="20" value="4" />
                             </label>
-                            <button id="paintClearBtn">Clear</button>
+                            <button id="paintClearBtn" type="button">Clear</button>
                         </div>
                     </div>
                     <small class="hint">Only the painter sees the controls. All players see the drawing.</small>
@@ -88,8 +88,8 @@
 
                 <section class="actions" id="resetSection">
                     <div class="inline" style="display:flex; gap:8px;">
-                        <button id="resetKeepResultsBtn" style="flex:1">Reset</button>
-                        <button id="resetWithResultsBtn" style="flex:1">Reset Game</button>
+                        <button id="resetKeepResultsBtn" style="flex:1" type="button">Reset</button>
+                        <button id="resetWithResultsBtn" style="flex:1" type="button">Reset Game</button>
                     </div>
                 </section>
 
@@ -108,8 +108,8 @@
                     <div class="inline" style="gap:8px; flex-direction:column;">
                         <input id="managePlayerName" type="text" placeholder="Type player name" />
                         <div class="inline" style="gap:8px; width:100%;">
-                            <button id="addPlayerBtn" style="flex:1">Add player</button>
-                            <button id="deletePlayerBtn" style="flex:1">Delete player</button>
+                            <button id="addPlayerBtn" style="flex:1" type="button">Add player</button>
+                            <button id="deletePlayerBtn" style="flex:1" type="button">Delete player</button>
                         </div>
                     </div>
                     <small class="hint">Only the painter can add or delete players.</small>
