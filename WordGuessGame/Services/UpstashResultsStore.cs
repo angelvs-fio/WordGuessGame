@@ -13,6 +13,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _scoresKey;
     private readonly string _lastWinnerKey;
     private readonly string _activePlayersKey;
+    private readonly string _playersKey;
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -21,6 +22,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         _scoresKey = $"{prefix}:scores";
         _lastWinnerKey = $"{prefix}:lastwinner";
         _activePlayersKey = $"{prefix}:active";
+        _playersKey = $"{prefix}:players";
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
@@ -175,6 +177,75 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
                 .ToArray();
         }
         catch { return Array.Empty<string>(); }
+    }
+
+    // Persistent players list via Redis Set
+    public string[] GetPlayers()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/smembers/{Uri.EscapeDataString(_playersKey)}";
+            var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            if (!resp.IsSuccessStatusCode) return Array.Empty<string>();
+            var json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result)) return Array.Empty<string>();
+            if (result.ValueKind != JsonValueKind.Array) return Array.Empty<string>();
+            return result.EnumerateArray()
+                .Select(e => e.GetString() ?? string.Empty)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    public void SetPlayers(IEnumerable<string> players)
+    {
+        try
+        {
+            // Reset the players set then add provided players
+            var urlDel = $"{_baseUrl}/del/{Uri.EscapeDataString(_playersKey)}";
+            _http.PostAsync(urlDel, null).GetAwaiter().GetResult();
+            var list = players?.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? Array.Empty<string>();
+            if (list.Length == 0) return;
+            var segments = new List<string>
+            {
+                _baseUrl.TrimEnd('/'),
+                "sadd",
+                Uri.EscapeDataString(_playersKey)
+            };
+            foreach (var p in list)
+            {
+                segments.Add(Uri.EscapeDataString(p));
+            }
+            var url = string.Join('/', segments);
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public void AddPlayer(string name)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            var url = $"{_baseUrl}/sadd/{Uri.EscapeDataString(_playersKey)}/{Uri.EscapeDataString(name)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public void RemovePlayer(string name)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
+            var url = $"{_baseUrl}/srem/{Uri.EscapeDataString(_playersKey)}/{Uri.EscapeDataString(name)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
     }
 
     public void Dispose()

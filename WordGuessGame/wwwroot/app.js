@@ -25,6 +25,12 @@
     const historyList = document.getElementById("historyList");
     const resultsBody = document.getElementById("resultsBody");
 
+    // Painter-only manage players UI
+    const managePlayersSection = document.getElementById("managePlayersSection");
+    const managePlayerName = document.getElementById("managePlayerName");
+    const addPlayerBtn = document.getElementById("addPlayerBtn");
+    const deletePlayerBtn = document.getElementById("deletePlayerBtn");
+
     // Paint control
     const paintSection = document.getElementById("paintSection");
     const paintCanvas = document.getElementById("paintCanvas");
@@ -47,8 +53,8 @@
 
     // Throttling for freehand stroke sending
     let lastStrokeSentTs = 0;
-    const STROKE_SEND_INTERVAL_MS = 10; // ~100fps, reduce gaps
-    const STROKE_MIN_DISTANCE = 0.3; // accept shorter moves
+    const STROKE_SEND_INTERVAL_MS = 10; // ~100fps
+    const STROKE_MIN_DISTANCE = 0.3; // px
 
     // Track active players announced by server
     let activePlayers = [];
@@ -87,7 +93,7 @@
             .replaceAll("'", "&#39;");
     }
 
-    // Fetch and render results (with active highlight)
+    // Fetch and render results
     async function loadAndRenderResultsFromFile() {
         try {
             const res = await fetch("results");
@@ -120,7 +126,7 @@
         painterBtn.classList.toggle("active", isPainter);
         painterBtn.setAttribute("aria-pressed", String(isPainter));
         painterBtn.textContent = isPainter ? "I am the painter (on)" : "I am the painter";
-
+        managePlayersSection.style.display = isPainter ? "block" : "none";
         if (isPainter && statusText.textContent === "Select your name to start guessing.") {
             statusText.textContent = "Waiting for secret...";
         }
@@ -134,7 +140,6 @@
         const me = getUser();
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === me;
-
         resetSection.style.display = iAmGlobalPainter ? "block" : "none";
         if (paintSection) paintSection.style.display = "block";
         if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
@@ -142,27 +147,19 @@
 
     function setInputsEnabled(enabled) {
         const nameSelected = hasSelectedName();
-
-        // Keep painter section visible even when game is over
         painterSection.style.display = isPainter ? "block" : "none";
         guessSection.style.display = isPainter ? "none" : "block";
         applyNameRowVisibility();
-
         secretInput.disabled = !enabled || isGameOver || !isPainter;
         setSecretBtn.disabled = !enabled || isGameOver || !isPainter;
-
         const canGuess = enabled && !isGameOver && !isPainter && nameSelected;
         guessInput.disabled = !canGuess;
         guessBtn.disabled = !canGuess;
-
         userNameInput.disabled = !enabled || isGameOver;
-
         if (!isPainter && !nameSelected && !isGameOver && enabled) {
             statusText.textContent = "Select your name to start guessing.";
         }
-
         painterBtn.style.display = nameSelected ? "none" : "inline-block";
-
         updatePainterUI();
         applyGlobalPainterVisibility();
     }
@@ -182,9 +179,7 @@
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
         startX = x; startY = y;
-        // save base image for shape preview
         baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
-        // reset stroke throttling
         lastStrokeSentTs = performance.now();
     }
 
@@ -193,10 +188,8 @@
         const { x, y } = getCanvasPos(ev);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-
         const tool = paintTool ? paintTool.value : "freehand";
         if (tool === "freehand") {
-            // Draw locally for the painter
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
@@ -204,24 +197,18 @@
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(x, y);
             ctx.stroke();
-
             const now = performance.now();
             const dx = x - lastX;
             const dy = y - lastY;
             const dist2 = dx * dx + dy * dy;
             if (now - lastStrokeSentTs >= STROKE_SEND_INTERVAL_MS && dist2 >= STROKE_MIN_DISTANCE * STROKE_MIN_DISTANCE) {
                 try {
-                    // Fire-and-forget to avoid backpressure
                     connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
                     lastStrokeSentTs = now;
-                } catch (e) {
-                    console.error(e);
-                }
+                } catch (e) { console.error(e); }
             }
-
             lastX = x; lastY = y;
         } else {
-            // Preview shapes while dragging
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -252,9 +239,7 @@
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
         const tool = paintTool ? paintTool.value : "freehand";
-
         if (tool === "line") {
-            // local (ensure final render based on saved base)
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -290,7 +275,6 @@
                 await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color, size });
             } catch (e) { console.error(e); }
         } else {
-            // Freehand: send a final segment to avoid a gap caused by throttling
             try {
                 connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
             } catch (e) { console.error(e); }
@@ -298,39 +282,22 @@
         baseImage = null;
     }
 
-    function renderStroke(seg) {
-        if (!ctx || !seg) return;
-        ctx.strokeStyle = seg.color || "#000";
-        ctx.lineWidth = Number(seg.size) || 4;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(seg.x1, seg.y1);
-        ctx.lineTo(seg.x2, seg.y2);
-        ctx.stroke();
-    }
-
-    function renderShape(shape) {
-        if (!ctx || !shape) return;
-        const type = shape.type;
-        const p = shape.payload || {};
-        const color = p.color || "#000";
-        const size = Number(p.size) || 4;
-        ctx.strokeStyle = color;
-        ctx.lineWidth = size;
-        if (type === "line") {
-            ctx.lineCap = "round";
-            ctx.beginPath();
-            ctx.moveTo(p.x1, p.y1);
-            ctx.lineTo(p.x2, p.y2);
-            ctx.stroke();
-        } else if (type === "rect") {
-            ctx.strokeRect(p.x, p.y, p.w, p.h);
-        } else if (type === "circle") {
-            ctx.beginPath();
-            ctx.arc(p.cx, p.cy, p.r, 0, Math.PI * 2);
-            ctx.stroke();
+    // Manage players actions
+    async function managePlayer(action) {
+        const name = (managePlayerName.value || "").trim();
+        if (!name) return;
+        try {
+            const res = await fetch(`/players/manage/${action}?name=${encodeURIComponent(name)}`, { method: "POST" });
+            if (!res.ok) throw new Error(`${action} ${res.status}`);
+            managePlayerName.value = "";
+            await populateNames();
+            await loadAndRenderResultsFromFile();
+        } catch (e) {
+            console.error(`Failed to ${action} player:`, e);
         }
     }
+    addPlayerBtn.addEventListener("click", () => managePlayer("add"));
+    deletePlayerBtn.addEventListener("click", () => managePlayer("remove"));
 
     if (paintCanvas && ctx) {
         paintCanvas.addEventListener("mousedown", beginDraw);
@@ -341,14 +308,11 @@
         paintCanvas.addEventListener("touchmove", (e) => { e.preventDefault(); draw(e.touches[0]); }, { passive: false });
         paintCanvas.addEventListener("touchend", (e) => { e.preventDefault(); const t = e.changedTouches && e.changedTouches[0]; endDraw(t ? t : undefined); }, { passive: false });
         paintCanvas.addEventListener("touchcancel", (e) => { e.preventDefault(); const t = e.changedTouches && e.changedTouches[0]; endDraw(t ? t : undefined); }, { passive: false });
-
         paintClearBtn.addEventListener("click", async () => {
             if (!ctx) return;
             ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
             baseImage = null;
-            try {
-                await connection.invoke("ClearCanvas", getUser());
-            } catch (e) { console.error(e); }
+            try { await connection.invoke("ClearCanvas", getUser()); } catch (e) { console.error(e); }
         });
     }
 
@@ -356,58 +320,35 @@
         isPainter = !isPainter;
         updatePainterUI();
         applyNameRowVisibility();
-
         try {
             const me = getUser();
             await connection.invoke("SelectPainter", isPainter ? me : null);
-        } catch (e) {
-            console.error(e);
-        }
-
+        } catch (e) { console.error(e); }
         setInputsEnabled(!isGameOver);
     });
 
     userNameInput.addEventListener("change", async () => {
         setInputsEnabled(!isGameOver);
         if (hasSelectedName()) {
-            try {
-                await connection.invoke("SetUserName", getUser());
-            } catch (e) {
-                console.error(e);
-            }
+            try { await connection.invoke("SetUserName", getUser()); } catch (e) { console.error(e); }
         }
-        // Refresh results to reflect highlight
         await loadAndRenderResultsFromFile();
     });
 
     setSecretBtn.addEventListener("click", async () => {
         const secret = (secretInput.value || "").trim();
         if (!secret) return;
-        try {
-            await connection.invoke("SetSecret", getUser(), secret);
-            secretInput.value = "";
-        } catch (e) {
-            console.error(e);
-        }
+        try { await connection.invoke("SetSecret", getUser(), secret); secretInput.value = ""; } catch (e) { console.error(e); }
     });
 
     guessBtn.addEventListener("click", async () => {
         const guess = (guessInput.value || "").trim();
         if (!guess) return;
-        try {
-            await connection.invoke("Guess", getUser(), guess);
-            guessInput.value = "";
-            guessInput.focus();
-        } catch (e) {
-            console.error(e);
-        }
+        try { await connection.invoke("Guess", getUser(), guess); guessInput.value = ""; guessInput.focus(); } catch (e) { console.error(e); }
     });
 
     guessInput.addEventListener("keydown", async (ev) => {
-        if (ev.key === "Enter" && !guessBtn.disabled) {
-            ev.preventDefault();
-            guessBtn.click();
-        }
+        if (ev.key === "Enter" && !guessBtn.disabled) { ev.preventDefault(); guessBtn.click(); }
     });
 
     function setResetStatus(resetMsg) {
@@ -415,10 +356,8 @@
         historyList.innerHTML = "";
         statusText.textContent = resetMsg || "Game reset. Waiting for secret...";
         setInputsEnabled(true);
-        // Clear painter canvas on reset
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
-        // Clear active players so results are not highlighted after reset
         activePlayers = [];
     }
 
@@ -442,10 +381,10 @@
         } catch (e) { console.error(e); }
     });
 
+    // SignalR events
     connection.on("PainterSelected", payload => {
         const announced = (payload && payload.painter) ? payload.painter : "";
         currentPainter = announced;
-
         if (announced && hasSelectedName() && announced === getUser()) {
             isPainter = true;
             updatePainterUI();
@@ -455,13 +394,11 @@
             updatePainterUI();
             applyNameRowVisibility();
         }
-
         applyGlobalPainterVisibility();
     });
 
     connection.on("ActivePlayers", async players => {
         activePlayers = Array.isArray(players) ? players : [];
-        // Refresh results to show active highlight for everyone
         await loadAndRenderResultsFromFile();
     });
 
@@ -491,40 +428,24 @@
         await loadAndRenderResultsFromFile();
     });
 
-    connection.on("GameState", async state => {
-        updateStatus(state);
-    });
-
-    connection.on("Stroke", seg => {
-        renderStroke(seg);
-    });
-
-    connection.on("Shape", shape => {
-        renderShape(shape);
-    });
-
-    connection.on("CanvasCleared", () => {
-        if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
-        baseImage = null;
-    });
-
+    connection.on("GameState", async state => { updateStatus(state); });
+    connection.on("Stroke", seg => { renderStroke(seg); });
+    connection.on("Shape", shape => { renderShape(shape); });
+    connection.on("CanvasCleared", () => { if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height); baseImage = null; });
     connection.on("ResetWithResults", async () => {
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results cleared.";
         isGameOver = false;
         setInputsEnabled(true);
-        // Clear active players so no one is highlighted after reset
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
     });
-
     connection.on("ResetKeepResults", async () => {
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results kept.";
         isGameOver = false;
         setInputsEnabled(true);
-        // Clear active players so no one is highlighted after reset
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
@@ -546,10 +467,10 @@
     function renderResults(items) {
         resultsBody.innerHTML = "";
         if (!Array.isArray(items) || items.length === 0) return;
-        const activeSet = new Set(activePlayers || []);
+        const activeSet = new Set((activePlayers || []).map(a => a.toLowerCase()));
         items.forEach(x => {
             const crown = x.isLastWinner ? " 👑" : "";
-            const isActive = activeSet.has(x.name);
+            const isActive = activeSet.has(String(x.name).toLowerCase());
             const nameCell = isActive ? `<span class="active-player">${escapeHtml(x.name)}</span>${crown}` : `${escapeHtml(x.name)}${crown}`;
             const tr = document.createElement("tr");
             tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
@@ -558,22 +479,13 @@
     }
 
     // Startup
-    (async function start() {
-        await populateNames();
-        await loadAndRenderResultsFromFile();
-        try {
-            await connection.start();
+    connection.start()
+        .then(async () => {
+            await populateNames();
+            await loadAndRenderResultsFromFile();
             statusText.textContent = "Connected. Waiting for secret...";
-            // If a name is already selected on reconnect, announce it to server
-            if (hasSelectedName()) {
-                try { await connection.invoke("SetUserName", getUser()); } catch {}
-            }
-        } catch (err) {
-            console.error("Connection failed:", err);
-            statusText.textContent = "Disconnected. Retrying...";
-            setTimeout(start, 2000);
-            return;
-        }
-        setInputsEnabled(true);
-    })();
+            if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
+        })
+        .catch(err => { console.error("Connection failed:", err); statusText.textContent = "Disconnected."; });
+
 })();

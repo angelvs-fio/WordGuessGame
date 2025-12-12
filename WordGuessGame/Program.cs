@@ -55,48 +55,34 @@ builder.Services.AddSingleton<IResultsStore>(sp =>
     return new FileResultsStore(resultsPath);
 });
 
-// Optional seed players via environment variable PLAYERS (comma-separated)
-var seedPlayersEnv = builder.Configuration["PLAYERS"];
-var seedPlayers = string.IsNullOrWhiteSpace(seedPlayersEnv)
-    ? Array.Empty<string>()
-    : seedPlayersEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-
-// Sync results store with PLAYERS list if provided: keep scores for listed players,
-// add missing with 0, and remove any not listed.
+// Load players from Redis players set if Upstash is used; else from results
 builder.Services.AddSingleton<PlayerRegistry>(sp =>
 {
     var store = sp.GetRequiredService<IResultsStore>();
 
-    // If PLAYERS is provided, use it as the source of truth and sync Redis
-    if (seedPlayers.Length > 0)
+    // Try Upstash-specific players set
+    if (store is UpstashResultsStore upstashStore)
     {
-        try
+        var players = upstashStore.GetPlayers();
+        if (players.Length > 0)
         {
-            var current = store.GetResults();
-            // Keep only players in PLAYERS, preserving existing scores
-            var synced = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in seedPlayers)
+            // Sync scores to exactly this set (preserve scores where present)
+            try
             {
-                if (current.TryGetValue(p, out var score))
-                    synced[p] = score; // preserve
-                else
-                    synced[p] = 0; // add new
+                var current = upstashStore.GetResults();
+                var synced = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var p in players)
+                {
+                    synced[p] = current.TryGetValue(p, out var score) ? score : 0;
+                }
+                upstashStore.WriteResults(synced);
             }
-            // Write back the synced set (removes any not in PLAYERS)
-            store.WriteResults(synced);
+            catch { }
+            return new PlayerRegistry(players);
         }
-        catch
-        {
-            // ignore sync errors; registry will still use PLAYERS
-        }
-        return new PlayerRegistry(seedPlayers);
     }
 
-    // No PLAYERS provided: load players from results (use keys as player names)
+    // Fallback: use keys from existing results
     string[] playersFromResults;
     try
     {
@@ -138,7 +124,7 @@ app.MapHub<GuessHub>("/hub/guess");
 // Health endpoint
 app.MapGet("/health", () => Results.Json(new { status = "ok" }));
 
-// Serve players as-is (already ordered when loaded from results store or PLAYERS)
+// Serve players as-is (already ordered when loaded from store)
 app.MapGet("/players", (PlayerRegistry reg) => Results.Json(reg.Players));
 
 // Serve results ordered by name ascending and include last winner flag
@@ -149,6 +135,37 @@ app.MapGet("/results", (GameService svc) =>
     var ordered = points.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
                         .Select(kv => new { name = kv.Key, points = kv.Value, isLastWinner = string.Equals(kv.Key, lastWinner, StringComparison.Ordinal) });
     return Results.Json(ordered);
+});
+
+// Manage players: add/remove in Redis players set (Upstash store only)
+app.MapPost("/players/manage/add", (HttpContext ctx, IResultsStore store) =>
+{
+    if (store is not UpstashResultsStore upstash) return Results.BadRequest(new { error = "Upstash store required" });
+    var name = ctx.Request.Query["name"].ToString().Trim();
+    if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "name required" });
+    upstash.AddPlayer(name);
+    // Ensure scores include the player
+    var current = upstash.GetResults();
+    if (!current.ContainsKey(name)) current[name] = 0;
+    upstash.WriteResults(current);
+    var players = upstash.GetPlayers();
+    return Results.Json(new { players, results = current.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => new { name = kv.Key, points = kv.Value }) });
+});
+
+app.MapPost("/players/manage/remove", (HttpContext ctx, IResultsStore store) =>
+{
+    if (store is not UpstashResultsStore upstash) return Results.BadRequest(new { error = "Upstash store required" });
+    var name = ctx.Request.Query["name"].ToString().Trim();
+    if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "name required" });
+    upstash.RemovePlayer(name);
+    // Remove from scores
+    var current = upstash.GetResults();
+    if (current.Remove(name))
+    {
+        upstash.WriteResults(current);
+    }
+    var players = upstash.GetPlayers();
+    return Results.Json(new { players, results = current.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => new { name = kv.Key, points = kv.Value }) });
 });
 
 app.Run();

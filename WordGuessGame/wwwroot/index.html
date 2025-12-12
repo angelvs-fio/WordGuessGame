@@ -102,6 +102,18 @@
                         <tbody id="resultsBody"></tbody>
                     </table>
                 </section>
+
+                <!-- Painter-only: manage players section under results -->
+                <section class="manage-players" id="managePlayersSection" style="display:none; margin-top:12px;">
+                    <div class="inline" style="gap:8px; flex-direction:column;">
+                        <input id="managePlayerName" type="text" placeholder="Type player name" />
+                        <div class="inline" style="gap:8px; width:100%;">
+                            <button id="addPlayerBtn" style="flex:1">Add player</button>
+                            <button id="deletePlayerBtn" style="flex:1">Delete player</button>
+                        </div>
+                    </div>
+                    <small class="hint">Only the painter can add or delete players.</small>
+                </section>
             </div>
         </div>
     </div>
