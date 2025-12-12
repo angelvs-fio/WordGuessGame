@@ -124,8 +124,25 @@ app.MapHub<GuessHub>("/hub/guess");
 // Health endpoint
 app.MapGet("/health", () => Results.Json(new { status = "ok" }));
 
-// Serve players as-is (already ordered when loaded from store)
-app.MapGet("/players", (PlayerRegistry reg) => Results.Json(reg.Players));
+// Serve players dynamically: Upstash players set if available; else from results keys
+app.MapGet("/players", (IResultsStore store) =>
+{
+    if (store is UpstashResultsStore upstash)
+    {
+        var players = upstash.GetPlayers();
+        return Results.Json(players);
+    }
+    try
+    {
+        var dict = store.GetResults();
+        var players = dict.Keys.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToArray();
+        return Results.Json(players);
+    }
+    catch
+    {
+        return Results.Json(Array.Empty<string>());
+    }
+});
 
 // Serve results ordered by name ascending and include last winner flag
 app.MapGet("/results", (GameService svc) =>

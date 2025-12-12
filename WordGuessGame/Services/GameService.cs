@@ -105,10 +105,24 @@ public sealed class GameService
     {
         var dict = _store.GetResults();
         bool changed = false;
-        foreach (var p in _reg.Players)
+
+        // If using Upstash, align missing players to the current Upstash players set
+        if (_store is UpstashResultsStore upstash)
         {
-            if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+            var players = upstash.GetPlayers();
+            foreach (var p in players)
+            {
+                if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+            }
         }
+        else
+        {
+            foreach (var p in _reg.Players)
+            {
+                if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+            }
+        }
+
         if (changed)
         {
             // Persist any missing players with zero scores
@@ -131,21 +145,32 @@ public sealed class GameService
 
     private void ResetResultsToZero()
     {
-        var dict = _reg.Players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
+        var players = (_store is UpstashResultsStore upstash)
+            ? upstash.GetPlayers()
+            : _reg.Players;
+        var dict = players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
         _store.WriteResults(dict);
     }
 
     private void EnsurePlayersPersisted()
     {
         var dict = _store.GetResults();
-        if (dict.Count == 0 && _reg.Players.Length > 0)
+        if (dict.Count == 0)
         {
-            // Seed all players with zero points
-            ResetResultsToZero();
-            return;
+            var players = (_store is UpstashResultsStore upstash)
+                ? upstash.GetPlayers()
+                : _reg.Players;
+            if (players.Length > 0)
+            {
+                // Seed all players with zero points
+                var seed = players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
+                _store.WriteResults(seed);
+                return;
+            }
         }
         bool changed = false;
-        foreach (var p in _reg.Players)
+        var baseline = (_store is UpstashResultsStore upstash2) ? upstash2.GetPlayers() : _reg.Players;
+        foreach (var p in baseline)
         {
             if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
         }
