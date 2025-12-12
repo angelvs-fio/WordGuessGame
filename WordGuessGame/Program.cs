@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using WordGuessGame.Models;
 using WordGuessGame.Models.Enums;
 using WordGuessGame.Services;
+using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -135,6 +136,18 @@ public class GuessHub(GameService service) : Hub
     private readonly GameService _svc = service;
     private static string? _currentPainter; // track painter name
 
+    // Track which connections selected which player names
+    private static readonly ConcurrentDictionary<string, string> _connToName = new();
+
+    private static string[] GetActivePlayers()
+    {
+        return _connToName.Values
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public override async Task OnConnectedAsync()
     {
         await Clients.Caller.SendAsync("GameState", new
@@ -148,7 +161,30 @@ public class GuessHub(GameService service) : Hub
 
         // Inform caller who is the current painter
         await Clients.Caller.SendAsync("PainterSelected", new { painter = _currentPainter ?? string.Empty });
+
+        // Send current active players to the new client
+        await Clients.Caller.SendAsync("ActivePlayers", GetActivePlayers());
         await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        // Remove any mapping for this connection and broadcast updated active players
+        if (_connToName.TryRemove(Context.ConnectionId, out _))
+        {
+            await Clients.All.SendAsync("ActivePlayers", GetActivePlayers());
+        }
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    // Called by clients when a user selects their name from the dropdown
+    public async Task SetUserName(string name)
+    {
+        var n = (name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(n)) return;
+
+        _connToName[Context.ConnectionId] = n;
+        await Clients.All.SendAsync("ActivePlayers", GetActivePlayers());
     }
 
     public async Task SetSecret(string user, string secret)

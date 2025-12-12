@@ -50,6 +50,9 @@
     const STROKE_SEND_INTERVAL_MS = 10; // ~100fps, reduce gaps
     const STROKE_MIN_DISTANCE = 0.3; // accept shorter moves
 
+    // Track active players announced by server
+    let activePlayers = [];
+
     // Load players into dropdown
     async function populateNames() {
         try {
@@ -84,24 +87,13 @@
             .replaceAll("'", "&#39;");
     }
 
-    // Initial load from results.json for Name/Points only
+    // Fetch and render results (with active highlight)
     async function loadAndRenderResultsFromFile() {
         try {
             const res = await fetch("results");
             if (!res.ok) throw new Error(`results ${res.status}`);
             const items = await res.json();
-
-            resultsBody.innerHTML = "";
-
-            if (Array.isArray(items) && items.length > 0) {
-                items.forEach(x => {
-                    const crown = x.isLastWinner ? " 👑" : "";
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `<td>${escapeHtml(x.name)}${crown}</td><td>${x.points}</td>`;
-                    resultsBody.appendChild(tr);
-                });
-                return;
-            }
+            renderResults(items);
         } catch (e) {
             console.error("Failed to load results:", e);
             statusText.textContent = "Failed to load results.";
@@ -375,8 +367,17 @@
         setInputsEnabled(!isGameOver);
     });
 
-    userNameInput.addEventListener("change", () => {
+    userNameInput.addEventListener("change", async () => {
         setInputsEnabled(!isGameOver);
+        if (hasSelectedName()) {
+            try {
+                await connection.invoke("SetUserName", getUser());
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        // Refresh results to reflect highlight
+        await loadAndRenderResultsFromFile();
     });
 
     setSecretBtn.addEventListener("click", async () => {
@@ -417,6 +418,8 @@
         // Clear painter canvas on reset
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
+        // Clear active players so results are not highlighted after reset
+        activePlayers = [];
     }
 
     resetWithResultsBtn.addEventListener("click", async () => {
@@ -454,6 +457,12 @@
         }
 
         applyGlobalPainterVisibility();
+    });
+
+    connection.on("ActivePlayers", async players => {
+        activePlayers = Array.isArray(players) ? players : [];
+        // Refresh results to show active highlight for everyone
+        await loadAndRenderResultsFromFile();
     });
 
     connection.on("Error", msg => { statusText.textContent = `Error: ${msg}`; });
@@ -504,6 +513,8 @@
         statusText.textContent = "Game reset. Results cleared.";
         isGameOver = false;
         setInputsEnabled(true);
+        // Clear active players so no one is highlighted after reset
+        activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
     });
@@ -513,6 +524,8 @@
         statusText.textContent = "Game reset. Results kept.";
         isGameOver = false;
         setInputsEnabled(true);
+        // Clear active players so no one is highlighted after reset
+        activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
     });
@@ -530,6 +543,20 @@
         setInputsEnabled(!isGameOver);
     }
 
+    function renderResults(items) {
+        resultsBody.innerHTML = "";
+        if (!Array.isArray(items) || items.length === 0) return;
+        const activeSet = new Set(activePlayers || []);
+        items.forEach(x => {
+            const crown = x.isLastWinner ? " 👑" : "";
+            const isActive = activeSet.has(x.name);
+            const nameCell = isActive ? `<span class="active-player">${escapeHtml(x.name)}</span>${crown}` : `${escapeHtml(x.name)}${crown}`;
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
+            resultsBody.appendChild(tr);
+        });
+    }
+
     // Startup
     (async function start() {
         await populateNames();
@@ -537,6 +564,10 @@
         try {
             await connection.start();
             statusText.textContent = "Connected. Waiting for secret...";
+            // If a name is already selected on reconnect, announce it to server
+            if (hasSelectedName()) {
+                try { await connection.invoke("SetUserName", getUser()); } catch {}
+            }
         } catch (err) {
             console.error("Connection failed:", err);
             statusText.textContent = "Disconnected. Retrying...";

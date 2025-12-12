@@ -184,3 +184,9 @@ h2 {
     white-space: nowrap; /* keep header label intact */
     text-align: right;   /* align numbers to the right */
 }
+
+/* Highlight active (logged/selected) players */
+.active-player {
+    color: var(--accent);
+    font-weight: 700;
+}
