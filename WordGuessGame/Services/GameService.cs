@@ -11,6 +11,8 @@ public interface IResultsStore
     void WriteResults(IDictionary<string, int> dict);
     string? GetLastWinner();
     void SetLastWinner(string winner);
+    string? GetTopic();
+    void SetTopic(string topic);
 }
 
 public sealed class GameService
@@ -142,6 +144,14 @@ public sealed class GameService
     }
 
     public string? GetLastWinner() => _store.GetLastWinner();
+
+    public string? GetTopic() => _store.GetTopic();
+    public void SetTopic(string topic)
+    {
+        var t = (topic ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(t)) return;
+        _store.SetTopic(t);
+    }
 
     private void ResetResultsToZero()
     {

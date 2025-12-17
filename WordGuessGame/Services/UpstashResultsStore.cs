@@ -14,6 +14,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _lastWinnerKey;
     private readonly string _activePlayersKey;
     private readonly string _playersKey;
+    private readonly string _topicKey;
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -23,6 +24,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         _lastWinnerKey = $"{prefix}:lastwinner";
         _activePlayersKey = $"{prefix}:active";
         _playersKey = $"{prefix}:players";
+        _topicKey = $"{prefix}:topic";
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
@@ -130,6 +132,32 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         try
         {
             var url = $"{_baseUrl}/set/{Uri.EscapeDataString(_lastWinnerKey)}/{Uri.EscapeDataString(winner)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public string? GetTopic()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/get/{Uri.EscapeDataString(_topicKey)}";
+            var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            if (!resp.IsSuccessStatusCode) return null;
+            var json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result)) return null;
+            var val = result.GetString();
+            return string.IsNullOrWhiteSpace(val) ? null : val;
+        }
+        catch { return null; }
+    }
+
+    public void SetTopic(string topic)
+    {
+        try
+        {
+            var url = $"{_baseUrl}/set/{Uri.EscapeDataString(_topicKey)}/{Uri.EscapeDataString(topic)}";
             _http.PostAsync(url, null).GetAwaiter().GetResult();
         }
         catch { /* ignore */ }

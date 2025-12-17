@@ -154,6 +154,22 @@ app.MapGet("/results", (GameService svc) =>
     return Results.Json(ordered);
 });
 
+// Topic endpoints
+app.MapGet("/topic", (GameService svc) =>
+{
+    var topic = svc.GetTopic() ?? string.Empty;
+    return Results.Json(new { topic });
+});
+
+app.MapPost("/topic/set", async (HttpContext ctx, GameService svc, IHubContext<GuessHub> hub) =>
+{
+    var topic = ctx.Request.Query["topic"].ToString().Trim();
+    if (string.IsNullOrWhiteSpace(topic)) return Results.BadRequest(new { error = "topic required" });
+    svc.SetTopic(topic);
+    await hub.Clients.All.SendAsync("TopicUpdated", new { topic });
+    return Results.Json(new { topic });
+});
+
 // Manage players: add/remove in Redis players set (Upstash store only)
 app.MapPost("/players/manage/add", (HttpContext ctx, IResultsStore store) =>
 {
@@ -213,7 +229,8 @@ public class GuessHub(GameService service) : Hub
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
-            lastWinner = _svc.GetLastWinner()
+            lastWinner = _svc.GetLastWinner(),
+            topic = _svc.GetTopic() ?? string.Empty
         });
 
         // Inform caller who is the current painter
@@ -343,6 +360,25 @@ public class GuessHub(GameService service) : Hub
         }
     }
 
+    // Painter-only: set topic and broadcast
+    public async Task SetTopic(string user, string topic)
+    {
+        if (_currentPainter == null || !string.Equals(_currentPainter, user, StringComparison.Ordinal))
+        {
+            await Clients.Caller.SendAsync("Error", "Only the current painter can set the topic.");
+            return;
+        }
+        var t = (topic ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(t))
+        {
+            await Clients.Caller.SendAsync("Error", "Topic is required.");
+            return;
+        }
+        _svc.SetTopic(t);
+        await Clients.All.SendAsync("TopicUpdated", new { topic = t });
+        await BroadcastState();
+    }
+
     private Task BroadcastState() =>
         Clients.All.SendAsync("GameState", new
         {
@@ -350,6 +386,7 @@ public class GuessHub(GameService service) : Hub
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
-            lastWinner = _svc.GetLastWinner()
+            lastWinner = _svc.GetLastWinner(),
+            topic = _svc.GetTopic() ?? string.Empty
         });
 }

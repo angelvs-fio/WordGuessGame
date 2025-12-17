@@ -6,6 +6,7 @@ public sealed class FileResultsStore : IResultsStore
 {
     private readonly string _resultsPath;
     private readonly string _lastWinnerPath;
+    private readonly string _topicPath;
     private static readonly JsonSerializerOptions _opts = new() { WriteIndented = true };
 
     public FileResultsStore(string resultsPath)
@@ -13,6 +14,7 @@ public sealed class FileResultsStore : IResultsStore
         _resultsPath = resultsPath;
         var dir = Path.GetDirectoryName(resultsPath) ?? string.Empty;
         _lastWinnerPath = Path.Combine(dir, "lastwinner.txt");
+        _topicPath = Path.Combine(dir, "topic.txt");
     }
 
     public IDictionary<string, int> GetResults()
@@ -65,5 +67,25 @@ public sealed class FileResultsStore : IResultsStore
         {
             // ignore
         }
+    }
+
+    public string? GetTopic()
+    {
+        try
+        {
+            if (!File.Exists(_topicPath)) return null;
+            var text = File.ReadAllText(_topicPath).Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch { return null; }
+    }
+
+    public void SetTopic(string topic)
+    {
+        try
+        {
+            File.WriteAllText(_topicPath, topic);
+        }
+        catch { /* ignore */ }
     }
 }

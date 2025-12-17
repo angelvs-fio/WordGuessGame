@@ -25,6 +25,12 @@
     const historyList = document.getElementById("historyList");
     const resultsBody = document.getElementById("resultsBody");
 
+    // Topic UI
+    const topicLabel = document.getElementById("topicLabel");
+    const topicValue = document.getElementById("topicValue");
+    const setTopicBtn = document.getElementById("setTopicBtn");
+    const topicInput = document.getElementById("topicInput");
+
     // Painter-only manage players UI
     const managePlayersSection = document.getElementById("managePlayersSection");
     const managePlayerName = document.getElementById("managePlayerName");
@@ -106,6 +112,18 @@
         }
     }
 
+    async function loadTopic() {
+        try {
+            const res = await fetch("topic");
+            if (!res.ok) throw new Error(`topic ${res.status}`);
+            const payload = await res.json();
+            const t = (payload && payload.topic) ? String(payload.topic) : "";
+            renderTopic(t);
+        } catch (e) {
+            console.error("Failed to load topic:", e);
+        }
+    }
+
     function hasSelectedName() {
         return !!(userNameInput.value && userNameInput.value.trim().length);
     }
@@ -127,6 +145,8 @@
         painterBtn.setAttribute("aria-pressed", String(isPainter));
         painterBtn.textContent = isPainter ? "I am the painter (on)" : "I am the painter";
         managePlayersSection.style.display = isPainter ? "block" : "none";
+        setTopicBtn.style.display = isPainter ? "inline-block" : "none";
+        topicInput.style.display = isPainter ? "block" : "none";
         if (isPainter && statusText.textContent === "Select your name to start guessing.") {
             statusText.textContent = "Waiting for secret...";
         }
@@ -143,6 +163,8 @@
         resetSection.style.display = iAmGlobalPainter ? "block" : "none";
         if (paintSection) paintSection.style.display = "block";
         if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
+        setTopicBtn.style.display = iAmGlobalPainter ? "inline-block" : "none";
+        topicInput.style.display = iAmGlobalPainter ? "block" : "none";
     }
 
     function setInputsEnabled(enabled) {
@@ -333,6 +355,7 @@
             try { await connection.invoke("SetUserName", getUser()); } catch (e) { console.error(e); }
         }
         await loadAndRenderResultsFromFile();
+        await loadTopic();
     });
 
     setSecretBtn.addEventListener("click", async () => {
@@ -345,6 +368,13 @@
         const guess = (guessInput.value || "").trim();
         if (!guess) return;
         try { await connection.invoke("Guess", getUser(), guess); guessInput.value = ""; guessInput.focus(); } catch (e) { console.error(e); }
+    });
+
+    // Topic button: use input field value
+    setTopicBtn.addEventListener("click", async () => {
+        const t = (topicInput.value || "").trim();
+        if (!t) return;
+        try { await connection.invoke("SetTopic", getUser(), t); } catch (e) { console.error(e); }
     });
 
     guessInput.addEventListener("keydown", async (ev) => {
@@ -369,6 +399,7 @@
             setResetStatus("Game reset. Results cleared.");
             await populateNames();
             await loadAndRenderResultsFromFile();
+            await loadTopic();
         } catch (e) { console.error(e); }
     });
 
@@ -378,6 +409,7 @@
             setResetStatus("Game reset. Results kept.");
             await populateNames();
             await loadAndRenderResultsFromFile();
+            await loadTopic();
         } catch (e) { console.error(e); }
     });
 
@@ -440,6 +472,7 @@
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
+        await loadTopic();
     });
     connection.on("ResetKeepResults", async () => {
         historyList.innerHTML = "";
@@ -449,6 +482,13 @@
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
+        await loadTopic();
+    });
+
+    connection.on("TopicUpdated", payload => {
+        const t = (payload && payload.topic) ? String(payload.topic) : "";
+        renderTopic(t);
+        topicInput.value = t;
     });
 
     function updateStatus(state) {
@@ -461,7 +501,21 @@
             const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
             statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
         }
+        // topic always visible
+        const t = state.topic ? String(state.topic) : "";
+        renderTopic(t);
+        topicInput.value = t;
         setInputsEnabled(!isGameOver);
+    }
+
+    function renderTopic(topic) {
+        if (!topicLabel || !topicValue) return;
+        topicLabel.textContent = "Current topic:";
+        topicLabel.style.color = "white";
+        topicValue.textContent = String(topic || "").toUpperCase();
+        topicValue.style.color = "#22c55e"; // green
+        topicValue.style.fontWeight = "bold";
+        topicValue.style.textAlign = "center";
     }
 
     function renderResults(items) {
@@ -519,6 +573,7 @@
         .then(async () => {
             await populateNames();
             await loadAndRenderResultsFromFile();
+            await loadTopic();
             statusText.textContent = "Connected. Waiting for secret...";
             if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
         })
