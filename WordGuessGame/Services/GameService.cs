@@ -21,7 +21,7 @@ public sealed class GameService
     private readonly IResultsStore _store;
     private readonly PlayerRegistry _reg;
 
-    private string? _secretWord;
+    private string? _answerWord;
     private bool _isGameOver;
     private readonly ConcurrentQueue<GuessMessage> _history = new();
     private readonly ConcurrentDictionary<string, PlayerStats> _stats = new();
@@ -36,13 +36,13 @@ public sealed class GameService
     }
 
     public bool IsGameOver => _isGameOver;
-    public bool HasSecret => !string.IsNullOrWhiteSpace(_secretWord);
+    public bool HasAnswer => !string.IsNullOrWhiteSpace(_answerWord);
 
     public void ResetGame(bool keepResults)
     {
         lock (_lock)
         {
-            _secretWord = null;
+            _answerWord = null;
             _isGameOver = false;
             while (_history.TryDequeue(out _)) { }
             _stats.Clear();
@@ -55,14 +55,14 @@ public sealed class GameService
     public void ResetKeepResults() => ResetGame(keepResults: true);
     public void ResetWithResults() => ResetGame(keepResults: false);
 
-    public bool TrySetSecret(string secret)
+    public bool TrySetAnswer(string answer)
     {
         lock (_lock)
         {
-            if (_isGameOver || HasSecret) return false;
-            var s = (secret ?? "").Trim();
+            if (_isGameOver || HasAnswer) return false;
+            var s = (answer ?? "").Trim();
             if (string.IsNullOrWhiteSpace(s)) return false;
-            _secretWord = s;
+            _answerWord = s;
             return true;
         }
     }
@@ -72,13 +72,13 @@ public sealed class GameService
         lock (_lock)
         {
             if (_isGameOver) return GuessResultEnum.GameOver;
-            if (!HasSecret) return GuessResultEnum.NoSecret;
+            if (!HasAnswer) return GuessResultEnum.NoAnswer;
 
             var normalizedGuess = (guess ?? "").Trim();
             if (string.IsNullOrWhiteSpace(normalizedGuess))
                 return GuessResultEnum.Incorrect;
 
-            var isCorrect = string.Equals(_secretWord, normalizedGuess, StringComparison.OrdinalIgnoreCase);
+            var isCorrect = string.Equals(_answerWord, normalizedGuess, StringComparison.OrdinalIgnoreCase);
 
             var stats = _stats.GetOrAdd(user, _ => new PlayerStats(user));
 

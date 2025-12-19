@@ -4,6 +4,6 @@ public enum GuessResultEnum
 { 
     Incorrect, 
     Correct, 
-    NoSecret, 
+    NoAnswer, 
     GameOver
 }

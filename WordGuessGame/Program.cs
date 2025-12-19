@@ -225,7 +225,7 @@ public class GuessHub(GameService service) : Hub
     {
         await Clients.Caller.SendAsync("GameState", new
         {
-            hasSecret = _svc.HasSecret,
+            hasAnswer = _svc.HasAnswer,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
@@ -261,15 +261,15 @@ public class GuessHub(GameService service) : Hub
         await Clients.All.SendAsync("ActivePlayers", GetActivePlayers());
     }
 
-    public async Task SetSecret(string user, string secret)
+    public async Task SetAnswer(string user, string answer)
     {
-        var ok = _svc.TrySetSecret(secret);
+        var ok = _svc.TrySetAnswer(answer);
         if (!ok)
         {
-            await Clients.Caller.SendAsync("Error", "Secret already set or game over.");
+            await Clients.Caller.SendAsync("Error", "Answer already set or game over.");
             return;
         }
-        await Clients.All.SendAsync("SecretSet", new { by = user });
+        await Clients.All.SendAsync("AnswerSet", new { by = user });
         await BroadcastState();
     }
 
@@ -278,8 +278,8 @@ public class GuessHub(GameService service) : Hub
         var result = _svc.SubmitGuess(user, guess);
         switch (result)
         {
-            case GuessResultEnum.NoSecret:
-                await Clients.Caller.SendAsync("Error", "No secret set yet.");
+            case GuessResultEnum.NoAnswer:
+                await Clients.Caller.SendAsync("Error", "No answer set yet.");
                 break;
             case GuessResultEnum.GameOver:
                 await Clients.Caller.SendAsync("Error", "Game is already over.");
@@ -382,7 +382,7 @@ public class GuessHub(GameService service) : Hub
     private Task BroadcastState() =>
         Clients.All.SendAsync("GameState", new
         {
-            hasSecret = _svc.HasSecret,
+            hasAnswer = _svc.HasAnswer,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),

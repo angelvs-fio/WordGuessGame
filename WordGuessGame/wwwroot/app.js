@@ -11,8 +11,8 @@
     const painterSection = document.getElementById("painterSection");
     const guessSection = document.getElementById("guessSection");
 
-    const secretInput = document.getElementById("secretInput");
-    const setSecretBtn = document.getElementById("setSecretBtn");
+    const answerInput = document.getElementById("answerInput");
+    const setAnswerBtn = document.getElementById("setAnswerBtn");
     const guessInput = document.getElementById("guessInput");
     const guessBtn = document.getElementById("guessBtn");
 
@@ -148,7 +148,7 @@
         setTopicBtn.style.display = isPainter ? "inline-block" : "none";
         topicInput.style.display = isPainter ? "block" : "none";
         if (isPainter && statusText.textContent === "Select your name to start guessing.") {
-            statusText.textContent = "Waiting for secret...";
+            statusText.textContent = "Waiting for answer...";
         }
     }
 
@@ -172,8 +172,8 @@
         painterSection.style.display = isPainter ? "block" : "none";
         guessSection.style.display = isPainter ? "none" : "block";
         applyNameRowVisibility();
-        secretInput.disabled = !enabled || isGameOver || !isPainter;
-        setSecretBtn.disabled = !enabled || isGameOver || !isPainter;
+        answerInput.disabled = !enabled || isGameOver || !isPainter;
+        setAnswerBtn.disabled = !enabled || isGameOver || !isPainter;
         const canGuess = enabled && !isGameOver && !isPainter && nameSelected;
         guessInput.disabled = !canGuess;
         guessBtn.disabled = !canGuess;
@@ -358,10 +358,10 @@
         await loadTopic();
     });
 
-    setSecretBtn.addEventListener("click", async () => {
-        const secret = (secretInput.value || "").trim();
-        if (!secret) return;
-        try { await connection.invoke("SetSecret", getUser(), secret); secretInput.value = ""; } catch (e) { console.error(e); }
+    setAnswerBtn.addEventListener("click", async () => {
+        const answer = (answerInput.value || "").trim();
+        if (!answer) return;
+        try { await connection.invoke("SetAnswer", getUser(), answer); answerInput.value = ""; } catch (e) { console.error(e); }
     });
 
     guessBtn.addEventListener("click", async () => {
@@ -384,7 +384,7 @@
     function setResetStatus(resetMsg) {
         isGameOver = false;
         historyList.innerHTML = "";
-        statusText.textContent = resetMsg || "Game reset. Waiting for secret...";
+        statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
         setInputsEnabled(true);
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
@@ -436,8 +436,8 @@
 
     connection.on("Error", msg => { statusText.textContent = `Error: ${msg}`; });
 
-    connection.on("SecretSet", async payload => {
-        statusText.textContent = `Secret set by ${payload.by}. Start guessing!`;
+    connection.on("AnswerSet", async payload => {
+        statusText.textContent = `Answer set by ${payload.by}. Start guessing!`;
         await loadAndRenderResultsFromFile();
     });
 
@@ -493,10 +493,10 @@
 
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
-        if (!state.hasSecret && !isGameOver) {
-            statusText.textContent = "Waiting for secret...";
-        } else if (state.hasSecret && !isGameOver) {
-            statusText.textContent = "Secret set. Keep guessing!";
+        if (!state.hasAnswer && !isGameOver) {
+            statusText.textContent = "Waiting for answer...";
+        } else if (state.hasAnswer && !isGameOver) {
+            statusText.textContent = "Answer set. Keep guessing!";
         } else {
             const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
             statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
@@ -574,7 +574,7 @@
             await populateNames();
             await loadAndRenderResultsFromFile();
             await loadTopic();
-            statusText.textContent = "Connected. Waiting for secret...";
+            statusText.textContent = "Connected. Waiting for answer...";
             if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
         })
         .catch(err => { console.error("Connection failed:", err); statusText.textContent = "Disconnected."; });
