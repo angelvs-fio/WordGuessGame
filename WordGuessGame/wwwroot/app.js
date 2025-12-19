@@ -194,9 +194,7 @@
         managePlayersSection.style.display = isPainter ? "block" : "none";
         setTopicBtn.style.display = isPainter ? "inline-block" : "none";
         topicInput.style.display = isPainter ? "block" : "none";
-        if (isPainter && statusText.textContent === "Select your name to start guessing.") {
-            statusText.textContent = "Waiting for answer...";
-        }
+        // Removed: do not override status here; rely on server state
     }
 
     function applyNameRowVisibility() {
@@ -399,6 +397,10 @@
             const me = getUser();
             await connection.invoke("SelectPainter", isPainter ? me : null);
         } catch (e) { console.error(e); }
+        // Show painter-only status when no answer yet
+        if (isPainter && !hasAnswer && !isGameOver) {
+            statusText.textContent = "Waiting for answer...";
+        }
         setInputsEnabled(!isGameOver);
         applyCanvasEnablement();
     });
@@ -484,6 +486,14 @@
             updatePainterUI();
             applyNameRowVisibility();
         }
+        // Adjust status based on painter role when answer is set or not set
+        const someoneIsPainter = !!currentPainter;
+        const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
+        if (!hasAnswer && !isGameOver && iAmGlobalPainter) {
+            statusText.textContent = "Waiting for answer...";
+        } else if (hasAnswer && !isGameOver) {
+            statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : "Answer set. Start guessing!";
+        }
         applyGlobalPainterVisibility();
         applyCanvasEnablement();
     });
@@ -496,7 +506,9 @@
     connection.on("Error", msg => { statusText.textContent = `Error: ${msg}`; });
 
     connection.on("AnswerSet", async payload => {
-        statusText.textContent = `Answer set by ${payload.by}. Start guessing!`;
+        const someoneIsPainter = !!currentPainter;
+        const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
+        statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : `Answer set by ${payload.by}. Start guessing!`;
         hasAnswer = true; // enable canvas now
         applyCanvasEnablement();
         await loadAndRenderResultsFromFile();
@@ -560,10 +572,12 @@
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
         hasAnswer = !!state.hasAnswer;
+        const someoneIsPainter = !!currentPainter;
+        const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
         if (!state.hasAnswer && !isGameOver) {
             statusText.textContent = "Waiting for answer...";
         } else if (state.hasAnswer && !isGameOver) {
-            statusText.textContent = "Answer set. Keep guessing!";
+            statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : "Answer set. Keep guessing!";
         } else {
             const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
             statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
@@ -642,7 +656,7 @@
             await populateNames();
             await loadAndRenderResultsFromFile();
             await loadTopic();
-            statusText.textContent = "Connected. Waiting for answer...";
+            // Removed local status override; GameState from server will drive UI
             if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
             applyCanvasEnablement();
         })
