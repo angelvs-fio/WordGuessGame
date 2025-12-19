@@ -51,6 +51,7 @@
 
     // State
     let isGameOver = false;
+    let hasAnswer = false; // new: gate drawing until answer is set
     let isPainter = false;
     let currentPainter = "";
     let cachedUser = "";
@@ -67,6 +68,20 @@
 
     // Track active players announced by server
     let activePlayers = [];
+
+    // Helper: enable/disable canvas and painter controls based on state
+    function applyCanvasEnablement() {
+        const someoneIsPainter = !!currentPainter;
+        const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
+        const disableCanvas = isGameOver || !hasAnswer; // disable when winner or no answer yet
+        if (paintCanvas) {
+            paintCanvas.classList.toggle('disabled', disableCanvas);
+        }
+        // Show controls only when I'm the painter AND canvas is enabled
+        if (paintControls) {
+            paintControls.style.display = (!disableCanvas && iAmGlobalPainter) ? 'flex' : 'none';
+        }
+    }
 
     // Attach palette events
     if (colorPalette && paintColor) {
@@ -197,9 +212,10 @@
         const iAmGlobalPainter = someoneIsPainter && currentPainter === me;
         resetSection.style.display = iAmGlobalPainter ? "block" : "none";
         if (paintSection) paintSection.style.display = "block";
-        if (paintControls) paintControls.style.display = iAmGlobalPainter ? "flex" : "none";
-        setTopicBtn.style.display = iAmGlobalPainter ? "inline-block" : "none";
-        topicInput.style.display = iAmGlobalPainter ? "block" : "none";
+        // Only show controls when I am painter AND answer is set AND game not over
+        if (paintControls) paintControls.style.display = (iAmGlobalPainter && hasAnswer && !isGameOver) ? "flex" : "none";
+        // Update canvas enabled/disabled state
+        applyCanvasEnablement();
     }
 
     function setInputsEnabled(enabled) {
@@ -232,7 +248,7 @@
     }
 
     function beginDraw(ev) {
-        if (!ctx || !isPainter) return;
+        if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
@@ -242,7 +258,7 @@
     }
 
     async function draw(ev) {
-        if (!ctx || !isPainter || !drawing) return;
+        if (!ctx || !isPainter || !drawing || isGameOver || !hasAnswer) return; // gate drawing
         const { x, y } = getCanvasPos(ev);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
@@ -291,6 +307,7 @@
 
     async function endDraw(ev) {
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
+        if (isGameOver || !hasAnswer) { drawing = false; baseImage = null; return; } // gate drawing
         drawing = false;
         const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
         const { x, y } = getCanvasPos(pointEv);
@@ -383,6 +400,7 @@
             await connection.invoke("SelectPainter", isPainter ? me : null);
         } catch (e) { console.error(e); }
         setInputsEnabled(!isGameOver);
+        applyCanvasEnablement();
     });
 
     userNameInput.addEventListener("change", async () => {
@@ -392,6 +410,7 @@
         }
         await loadAndRenderResultsFromFile();
         await loadTopic();
+        applyCanvasEnablement();
     });
 
     setAnswerBtn.addEventListener("click", async () => {
@@ -399,6 +418,7 @@
         if (!answer) return;
         try { await connection.invoke("SetAnswer", getUser(), answer); answerInput.value = ""; } catch (e) { console.error(e); }
     });
+
 
     guessBtn.addEventListener("click", async () => {
         const guess = (guessInput.value || "").trim();
@@ -419,12 +439,14 @@
 
     function setResetStatus(resetMsg) {
         isGameOver = false;
+        hasAnswer = false; // reset answer state
         historyList.innerHTML = "";
         statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
         setInputsEnabled(true);
         if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
         baseImage = null;
         activePlayers = [];
+        applyCanvasEnablement();
     }
 
     resetWithResultsBtn.addEventListener("click", async () => {
@@ -463,6 +485,7 @@
             applyNameRowVisibility();
         }
         applyGlobalPainterVisibility();
+        applyCanvasEnablement();
     });
 
     connection.on("ActivePlayers", async players => {
@@ -474,6 +497,8 @@
 
     connection.on("AnswerSet", async payload => {
         statusText.textContent = `Answer set by ${payload.by}. Start guessing!`;
+        hasAnswer = true; // enable canvas now
+        applyCanvasEnablement();
         await loadAndRenderResultsFromFile();
     });
 
@@ -493,6 +518,7 @@
         isGameOver = true;
         statusText.textContent = `Congratulations! The winner is ${payload.winner}!`;
         setInputsEnabled(false);
+        applyCanvasEnablement();
         await loadAndRenderResultsFromFile();
     });
 
@@ -504,21 +530,25 @@
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results cleared.";
         isGameOver = false;
+        hasAnswer = false;
         setInputsEnabled(true);
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
         await loadTopic();
+        applyCanvasEnablement();
     });
     connection.on("ResetKeepResults", async () => {
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results kept.";
         isGameOver = false;
+        hasAnswer = false;
         setInputsEnabled(true);
         activePlayers = [];
         await populateNames();
         await loadAndRenderResultsFromFile();
         await loadTopic();
+        applyCanvasEnablement();
     });
 
     connection.on("TopicUpdated", payload => {
@@ -529,6 +559,7 @@
 
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
+        hasAnswer = !!state.hasAnswer;
         if (!state.hasAnswer && !isGameOver) {
             statusText.textContent = "Waiting for answer...";
         } else if (state.hasAnswer && !isGameOver) {
@@ -542,6 +573,7 @@
         renderTopic(t);
         topicInput.value = t;
         setInputsEnabled(!isGameOver);
+        applyCanvasEnablement();
     }
 
     function renderTopic(topic) {
@@ -612,6 +644,7 @@
             await loadTopic();
             statusText.textContent = "Connected. Waiting for answer...";
             if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
+            applyCanvasEnablement();
         })
         .catch(err => { console.error("Connection failed:", err); statusText.textContent = "Disconnected."; });
 

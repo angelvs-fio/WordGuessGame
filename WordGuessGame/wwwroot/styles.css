@@ -41,9 +41,13 @@ header h1 {
         grid-template-columns: 1fr; /* stack on small screens */
     }
 
-    .right {
-        order: 2
-    }
+    /* Promote left column children to grid items so we can reorder */
+    .left { display: contents; }
+
+    /* Left content first, then right column, then History last */
+    .left > *:not(.history) { order: 1; }
+    .right { order: 2 }
+    .left > .history { order: 3; }
 }
 
 section {
@@ -78,9 +82,9 @@ section {
     align-items: center;
 }
 .icon-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
+    width: 36px;  /* was 28px */
+    height: 36px; /* was 28px */
+    border-radius: 8px; /* slightly larger radius */
     background: #0b1220;
     border: 1px solid #263249;
     color: var(--text);
@@ -90,6 +94,7 @@ section {
     line-height: 1;
     padding: 0;
     cursor: pointer;
+    font-size: 18px; /* make glyphs a bit bigger */
 }
 .icon-btn.active {
     border-color: var(--accent);
@@ -143,6 +148,13 @@ button {
 .status {
     font-weight: 600;
     color: var(--accent)
+}
+
+/* Disabled canvas visuals */
+#paintCanvas.disabled {
+    pointer-events: none;
+    filter: grayscale(1) brightness(0.8);
+    opacity: 0.6;
 }
 
 .history-list {
