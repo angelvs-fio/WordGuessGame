@@ -19,7 +19,7 @@ body {
 }
 
 .container {
-    max-width: 1100px; /* a bit wider for two columns */
+    max-width: 1600px; /* widened to fit larger canvas */
     margin: 0 auto;
     padding: 24px
 }
@@ -31,12 +31,12 @@ header h1 {
 
 .layout {
     display: grid;
-    grid-template-columns: 1fr 420px; /* left grows, right fixed width */
+    grid-template-columns: 1fr 360px; /* reduce right column width */
     gap: 16px;
     align-items: start;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
     .layout {
         grid-template-columns: 1fr; /* stack on small screens */
     }
@@ -57,6 +57,63 @@ section {
 .inline {
     display: flex;
     gap: 8px
+}
+
+/* Ensure painter button matches the select height in the same row */
+#userNameRow {
+    align-items: center; /* center align to avoid mismatched pixel offsets */
+}
+#userNameRow .toggle-btn {
+    height: 44px;        /* normalized height */
+    margin-bottom: 0;    /* remove extra spacing inside row */
+}
+#userNameRow select {
+    height: 44px;        /* match button height */
+}
+
+/* Tool icon buttons */
+.tool-buttons {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+.icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: #0b1220;
+    border: 1px solid #263249;
+    color: var(--text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+}
+.icon-btn.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgb(34 197 94 / .25);
+}
+
+/* Color palette styles */
+.color-palette {
+    display: grid;
+    grid-template-columns: repeat(10, 24px);
+    justify-content: start;
+    gap: 10px;
+    padding: 0; /* inline row spacing handled by parent */
+}
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #263249;
+    cursor: pointer;
+    padding: 0;
+}
+.color-swatch:hover {
+    outline: 2px solid rgba(255,255,255,0.25);
 }
 
 input[type="text"], input[type="password"], select {
@@ -82,10 +139,6 @@ button {
         opacity: .5;
         cursor: not-allowed
     }
-
-.hint {
-    color: var(--muted)
-}
 
 .status {
     font-weight: 600;
@@ -138,7 +191,7 @@ h2 {
     margin-bottom: 8px;  /* keep a little space to content */
 }
 
-/* Painter toggle button: fixed size and spacing below */
+/* Painter toggle button base styles */
 .toggle-btn {
     background: var(--accent2);
     color: #0b1220;
@@ -146,17 +199,12 @@ h2 {
     border-radius: 8px;
     font-weight: 700;
 
-    /* fixed size */
     width: 220px;
-    height: 44px;
+    /* height defined contextually in #userNameRow */
 
-    /* internal padding for content alignment */
     padding: 8px 12px;
+    margin-bottom: 12px; /* used when button is standalone */
 
-    /* spacing under the button */
-    margin-bottom: 12px;
-
-    /* center the label inside */
     display: inline-flex;
     align-items: center;
     justify-content: center;

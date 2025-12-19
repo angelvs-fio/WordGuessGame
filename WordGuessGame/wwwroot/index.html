@@ -15,12 +15,10 @@
             <!-- Left column -->
             <div class="left">
                 <section class="user" id="userSection">
-                    <!-- Painter toggle button -->
-                    <div class="inline" style="margin-top:8px;">
+                    <!-- Painter toggle button and user name on same row -->
+                    <div id="userNameRow" class="inline" style="margin-top:8px; align-items:center;">
                         <button id="painterBtn" class="toggle-btn" aria-pressed="false" type="button">I am the painter</button>
-                    </div>
-                    <div id="userNameRow" class="inline">
-                        <select id="userName">
+                        <select id="userName" style="flex:1;">
                             <option value="" disabled selected>Select your name</option>
                         </select>
                     </div>
@@ -32,7 +30,6 @@
                         <input id="answerInput" type="text" placeholder="Enter answer word (visible)" />
                         <button id="setAnswerBtn" type="button">Set Answer</button>
                     </div>
-                    <small class="hint">Only the painter should set the answer.</small>
                 </section>
 
                 <section class="guess" id="guessSection">
@@ -47,21 +44,29 @@
                 <section class="paint" id="paintSection">
                     <h2>Draw</h2>
                     <div class="inline" style="gap:8px; align-items:center; flex-direction:column;">
-                        <canvas id="paintCanvas" width="640" height="400" style="border:1px solid #ccc; background:#fff; width:100%; max-width:640px;"></canvas>
-                        <div id="paintControls" class="inline" style="gap:12px; align-items:center; justify-content:flex-start; width:100%; max-width:640px; display:none; flex-wrap:wrap;">
-                            <div class="inline" style="gap:8px;">
-                                <label>
-                                    Tool:
-                                    <select id="paintTool">
-                                        <option value="freehand" selected>Freehand</option>
-                                        <option value="line">Line</option>
-                                        <option value="rect">Rectangle</option>
-                                        <option value="circle">Circle</option>
-                                    </select>
-                                </label>
+                        <canvas id="paintCanvas" width="1280" height="800" style="border:1px solid #ccc; background:#fff; width:100%; max-width:1280px;"></canvas>
+                        <div id="paintControls" class="inline" style="gap:12px; align-items:center; justify-content:flex-start; width:100%; max-width:1280px; display:none; flex-wrap:wrap;">
+                            <!-- Shape/tool buttons -->
+                            <div id="toolButtons" class="tool-buttons">
+                                <button class="icon-btn" data-tool="freehand" title="Freehand" aria-label="Freehand">✎</button>
+                                <button class="icon-btn" data-tool="line" title="Line" aria-label="Line">⎯</button>
+                                <button class="icon-btn" data-tool="rect" title="Rectangle" aria-label="Rectangle">▭</button>
+                                <button class="icon-btn" data-tool="circle" title="Circle" aria-label="Circle">◯</button>
+                            </div>
+                            <!-- Predefined color palette placed between tool and color picker -->
+                            <div id="colorPalette" class="color-palette" style="flex: none;">
+                                <button class="color-swatch" data-color="#000000" style="background-color:#000000" aria-label="Black"></button>
+                                <button class="color-swatch" data-color="#8b4513" style="background-color:#8b4513" aria-label="Brown"></button>
+                                <button class="color-swatch" data-color="#006400" style="background-color:#006400" aria-label="Dark Green"></button>
+                                <button class="color-swatch" data-color="#0000ff" style="background-color:#0000ff" aria-label="Blue"></button>
+                                <button class="color-swatch" data-color="#ff00ff" style="background-color:#ff00ff" aria-label="Magenta"></button>
+                                <button class="color-swatch" data-color="#ff0000" style="background-color:#ff0000" aria-label="Red"></button>
+                                <button class="color-swatch" data-color="#808080" style="background-color:#808080" aria-label="Gray"></button>
+                                <button class="color-swatch" data-color="#ffa500" style="background-color:#ffa500" aria-label="Orange"></button>
+                                <button class="color-swatch" data-color="#ffff00" style="background-color:#ffff00" aria-label="Yellow"></button>
+                                <button class="color-swatch" data-color="#00ffff" style="background-color:#00ffff" aria-label="Cyan"></button>
                             </div>
                             <label>
-                                Color:
                                 <input id="paintColor" type="color" value="#000000" />
                             </label>
                             <label>
@@ -71,7 +76,6 @@
                             <button id="paintClearBtn" type="button">Clear</button>
                         </div>
                     </div>
-                    <small class="hint">Only the painter sees the controls. All players see the drawing.</small>
                 </section>
 
                 <section class="history">
@@ -126,7 +130,6 @@
                             <button id="deletePlayerBtn" style="flex:1" type="button">Delete player</button>
                         </div>
                     </div>
-                    <small class="hint">Only the painter can add or delete players.</small>
                 </section>
             </div>
         </div>

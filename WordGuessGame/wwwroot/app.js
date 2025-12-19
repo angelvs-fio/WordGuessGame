@@ -41,10 +41,12 @@
     const paintSection = document.getElementById("paintSection");
     const paintCanvas = document.getElementById("paintCanvas");
     const paintControls = document.getElementById("paintControls");
-    const paintTool = document.getElementById("paintTool");
+    const paintTool = document.getElementById("paintTool"); // may not exist anymore
+    const toolButtons = document.getElementById("toolButtons");
     const paintColor = document.getElementById("paintColor");
     const paintSize = document.getElementById("paintSize");
     const paintClearBtn = document.getElementById("paintClearBtn");
+    const colorPalette = document.getElementById("colorPalette");
     const ctx = paintCanvas ? paintCanvas.getContext("2d") : null;
 
     // State
@@ -56,6 +58,7 @@
     let lastX = 0, lastY = 0;
     let startX = 0, startY = 0; // for shapes
     let baseImage = null; // ImageData for preview
+    let currentTool = "freehand"; // new: track selected tool
 
     // Throttling for freehand stroke sending
     let lastStrokeSentTs = 0;
@@ -64,6 +67,35 @@
 
     // Track active players announced by server
     let activePlayers = [];
+
+    // Attach palette events
+    if (colorPalette && paintColor) {
+        colorPalette.querySelectorAll('.color-swatch').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const c = btn.getAttribute('data-color');
+                if (c) paintColor.value = c;
+            });
+        });
+    }
+
+    // Tool buttons -> set tool
+    if (toolButtons) {
+        const buttons = Array.from(toolButtons.querySelectorAll('.icon-btn'));
+        const setActive = (tool) => {
+            currentTool = tool;
+            buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-tool') === tool));
+        };
+        // default active tool
+        setActive('freehand');
+        toolButtons.addEventListener('click', (e) => {
+            const target = e.target.closest('.icon-btn');
+            if (!target) return;
+            const tool = target.getAttribute('data-tool');
+            if (!tool) return;
+            if (paintTool) paintTool.value = tool; // keep compatibility if select exists
+            setActive(tool);
+        });
+    }
 
     // Load players into dropdown
     async function populateNames() {
@@ -153,7 +185,10 @@
     }
 
     function applyNameRowVisibility() {
-        userNameRow.style.display = isPainter ? "none" : "flex";
+        // Keep the row visible; only hide the username selector when painter
+        if (userNameRow) userNameRow.style.display = "flex";
+        if (userNameInput) userNameInput.style.display = isPainter ? "none" : "block";
+        if (painterBtn) painterBtn.style.display = "inline-flex";
     }
 
     function applyGlobalPainterVisibility() {
@@ -181,7 +216,8 @@
         if (!isPainter && !nameSelected && !isGameOver && enabled) {
             statusText.textContent = "Select your name to start guessing.";
         }
-        painterBtn.style.display = nameSelected ? "none" : "inline-block";
+        // Painter button must always be visible
+        painterBtn.style.display = "inline-flex";
         updatePainterUI();
         applyGlobalPainterVisibility();
     }
@@ -210,7 +246,7 @@
         const { x, y } = getCanvasPos(ev);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        const tool = paintTool ? paintTool.value : "freehand";
+        const tool = paintTool ? paintTool.value : currentTool;
         if (tool === "freehand") {
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -260,7 +296,7 @@
         const { x, y } = getCanvasPos(pointEv);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        const tool = paintTool ? paintTool.value : "freehand";
+        const tool = paintTool ? paintTool.value : currentTool;
         if (tool === "line") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
