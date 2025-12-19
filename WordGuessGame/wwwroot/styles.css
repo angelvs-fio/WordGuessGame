@@ -259,3 +259,11 @@ h2 {
 #deletePlayerBtn:hover {
     background-color: #b71c1c;
 }
+
+/* Increase font size for usernames dropdown */
+#userName {
+    font-size: 14px;
+}
+#userName option {
+    font-size: 14px;
+}

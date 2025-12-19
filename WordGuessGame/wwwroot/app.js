@@ -492,7 +492,10 @@
         if (!hasAnswer && !isGameOver && iAmGlobalPainter) {
             statusText.textContent = "Waiting for answer...";
         } else if (hasAnswer && !isGameOver) {
-            statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : "Answer set. Start guessing!";
+            const nameSelected = hasSelectedName();
+            statusText.textContent = iAmGlobalPainter
+                ? "Answer set. You can start drawing!"
+                : (nameSelected ? "Answer set. Start guessing!" : "Answer set. Please select your name and start guessing!");
         }
         applyGlobalPainterVisibility();
         applyCanvasEnablement();
@@ -508,7 +511,10 @@
     connection.on("AnswerSet", async payload => {
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
-        statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : `Answer set by ${payload.by}. Start guessing!`;
+        const nameSelected = hasSelectedName();
+        statusText.textContent = iAmGlobalPainter
+            ? "Answer set. You can start drawing!"
+            : (nameSelected ? `Answer set by ${payload.by}. Start guessing!` : `Answer set by ${payload.by}. Please select your name and start guessing!`);
         hasAnswer = true; // enable canvas now
         applyCanvasEnablement();
         await loadAndRenderResultsFromFile();
@@ -574,10 +580,13 @@
         hasAnswer = !!state.hasAnswer;
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
+        const nameSelected = hasSelectedName();
         if (!state.hasAnswer && !isGameOver) {
             statusText.textContent = "Waiting for answer...";
         } else if (state.hasAnswer && !isGameOver) {
-            statusText.textContent = iAmGlobalPainter ? "Answer set. You can start drawing!" : "Answer set. Keep guessing!";
+            statusText.textContent = iAmGlobalPainter
+                ? "Answer set. You can start drawing!"
+                : (nameSelected ? "Answer set. Keep guessing!" : "Answer set. Please select your name and start guessing!");
         } else {
             const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
             statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
