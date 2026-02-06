@@ -104,7 +104,7 @@ section {
 /* Color palette styles */
 .color-palette {
     display: grid;
-    grid-template-columns: repeat(12, 24px);
+    grid-template-columns: repeat(11, 24px);
     justify-content: start;
     gap: 10px;
     padding: 0; /* inline row spacing handled by parent */
