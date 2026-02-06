@@ -379,6 +379,19 @@ public class GuessHub(GameService service) : Hub
         await BroadcastState();
     }
 
+    // Painter-only: fill tool – broadcast a single fill command; clients do flood-fill locally
+    public async Task FillAt(string user, double x, double y, string color)
+    {
+        if (_currentPainter != null && string.Equals(_currentPainter, user, StringComparison.Ordinal))
+        {
+            await Clients.All.SendAsync("Fill", new { x, y, color });
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("Error", "Only the current painter can fill.");
+        }
+    }
+
     private Task BroadcastState() =>
         Clients.All.SendAsync("GameState", new
         {
