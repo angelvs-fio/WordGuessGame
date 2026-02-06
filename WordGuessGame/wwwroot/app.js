@@ -253,6 +253,17 @@
         startX = x; startY = y;
         baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
         lastStrokeSentTs = performance.now();
+        
+        // For eraser and freehand, draw a dot at the starting point
+        const tool = paintTool ? paintTool.value : currentTool;
+        if (tool === "freehand" || tool === "eraser") {
+            const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
+            const size = Number(paintSize.value) || 4;
+            ctx.fillStyle = brushColor;
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     async function draw(ev) {
@@ -310,8 +321,9 @@
         if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         if (isGameOver || !hasAnswer) { drawing = false; baseImage = null; return; } // gate drawing
         drawing = false;
-        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
-        const { x, y } = getCanvasPos(pointEv);
+        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : null;
+        // Use last known position if no valid event (e.g., touch end without coordinates)
+        const { x, y } = pointEv ? getCanvasPos(pointEv) : { x: lastX, y: lastY };
         
         const tool = paintTool ? paintTool.value : currentTool;
         const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
@@ -352,11 +364,13 @@
             try {
                 await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color: brushColor, size });
             } catch (e) { console.error(e); }
-        } else {
-            // freehand or eraser
-            try {
-                connection.send("DrawStroke", getUser(), lastX, lastY, x, y, brushColor, size).catch(console.error);
-            } catch (e) { console.error(e); }
+        } else if (tool === "freehand" || tool === "eraser") {
+            // Only send final stroke if we actually moved
+            if (Math.abs(x - startX) > 1 || Math.abs(y - startY) > 1) {
+                try {
+                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, brushColor, size).catch(console.error);
+                } catch (e) { console.error(e); }
+            }
         }
         baseImage = null;
     }
