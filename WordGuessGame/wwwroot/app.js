@@ -61,10 +61,6 @@
     let baseImage = null; // ImageData for preview
     let currentTool = "freehand"; // new: track selected tool
 
-    // Debounce for fill commands
-    let lastFillTs = 0;
-    const FILL_DEBOUNCE_MS = 200;
-
     // Throttling for freehand stroke sending
     let lastStrokeSentTs = 0;
     const STROKE_SEND_INTERVAL_MS = 10; // ~100fps
@@ -251,69 +247,12 @@
 
     function beginDraw(ev) {
         if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
-        const tool = paintTool ? paintTool.value : currentTool;
-        const { x, y } = getCanvasPos(ev);
-        if (tool === "fill") {
-            const now = performance.now();
-            if (now - lastFillTs < FILL_DEBOUNCE_MS) return;
-            lastFillTs = now;
-            const color = paintColor.value || "#000";
-            // Broadcast single fill command
-            connection.invoke("FillAt", getUser(), x, y, color).catch(console.error);
-            // Perform local fill immediately
-            floodFill(ctx, Math.floor(x), Math.floor(y), hexToRgba(color));
-            return; // do not start stroke drawing
-        }
         drawing = true;
+        const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
         startX = x; startY = y;
         baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
         lastStrokeSentTs = performance.now();
-    }
-
-    // Flood fill implementation
-    function hexToRgba(hex) {
-        const h = hex.replace('#','');
-        const bigint = parseInt(h.length === 3 ? h.split('').map(ch => ch+ch).join('') : h, 16);
-        return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255, a: 255 };
-    }
-
-    function colorsEqual(a, b) {
-        return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
-    }
-
-    function floodFill(ctx, sx, sy, fillColor) {
-        const w = paintCanvas.width, h = paintCanvas.height;
-        const img = ctx.getImageData(0, 0, w, h);
-        const data = img.data;
-        const idx = (x, y) => (y * w + x) * 4;
-        if (sx < 0 || sy < 0 || sx >= w || sy >= h) return;
-        const startIdx = idx(sx, sy);
-        const startColor = [data[startIdx], data[startIdx+1], data[startIdx+2], data[startIdx+3]];
-        const target = startColor;
-        const replacement = [fillColor.r, fillColor.g, fillColor.b, fillColor.a];
-        if (colorsEqual(target, replacement)) return;
-        const stack = [[sx, sy]];
-        const visited = new Uint8Array(w * h);
-        while (stack.length) {
-            const [x, y] = stack.pop();
-            const i = idx(x, y);
-            if (visited[y * w + x]) continue;
-            if (data[i] === target[0] && data[i+1] === target[1] && data[i+2] === target[2] && data[i+3] === target[3]) {
-                // Set color
-                data[i] = replacement[0];
-                data[i+1] = replacement[1];
-                data[i+2] = replacement[2];
-                data[i+3] = replacement[3];
-                visited[y * w + x] = 1;
-                // Push neighbors
-                if (x > 0) stack.push([x-1, y]);
-                if (x < w-1) stack.push([x+1, y]);
-                if (y > 0) stack.push([x, y-1]);
-                if (y < h-1) stack.push([x, y+1]);
-            }
-        }
-        ctx.putImageData(img, 0, 0);
     }
 
     async function draw(ev) {
@@ -604,11 +543,6 @@
     connection.on("GameState", async state => { updateStatus(state); });
     connection.on("Stroke", seg => { renderStroke(seg); });
     connection.on("Shape", shape => { renderShape(shape); });
-    connection.on("Fill", cmd => {
-        if (!ctx || !cmd) return;
-        const { x, y, color } = cmd;
-        floodFill(ctx, Math.floor(x), Math.floor(y), hexToRgba(color || "#000"));
-    });
     connection.on("CanvasCleared", () => { if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height); baseImage = null; });
     connection.on("ResetWithResults", async () => {
         historyList.innerHTML = "";
