@@ -258,11 +258,14 @@
     async function draw(ev) {
         if (!ctx || !isPainter || !drawing || isGameOver || !hasAnswer) return; // gate drawing
         const { x, y } = getCanvasPos(ev);
-        const color = paintColor.value || "#000";
-        const size = Number(paintSize.value) || 4;
+        
+        // Eraser uses white color; other tools use selected color
         const tool = paintTool ? paintTool.value : currentTool;
-        if (tool === "freehand") {
-            ctx.strokeStyle = color;
+        const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
+        const size = Number(paintSize.value) || 4;
+        
+        if (tool === "freehand" || tool === "eraser") {
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
             ctx.beginPath();
@@ -275,14 +278,14 @@
             const dist2 = dx * dx + dy * dy;
             if (now - lastStrokeSentTs >= STROKE_SEND_INTERVAL_MS && dist2 >= STROKE_MIN_DISTANCE * STROKE_MIN_DISTANCE) {
                 try {
-                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
+                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, brushColor, size).catch(console.error);
                     lastStrokeSentTs = now;
                 } catch (e) { console.error(e); }
             }
             lastX = x; lastY = y;
         } else {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
-            ctx.strokeStyle = color;
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             if (tool === "line") {
                 ctx.lineCap = "round";
@@ -309,12 +312,14 @@
         drawing = false;
         const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
         const { x, y } = getCanvasPos(pointEv);
-        const color = paintColor.value || "#000";
-        const size = Number(paintSize.value) || 4;
+        
         const tool = paintTool ? paintTool.value : currentTool;
+        const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
+        const size = Number(paintSize.value) || 4;
+        
         if (tool === "line") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
-            ctx.strokeStyle = color;
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
             ctx.beginPath();
@@ -322,34 +327,35 @@
             ctx.lineTo(x, y);
             ctx.stroke();
             try {
-                await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
+                await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color: brushColor, size });
             } catch (e) { console.error(e); }
         } else if (tool === "rect") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const w = x - startX;
             const h = y - startY;
-            ctx.strokeStyle = color;
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             ctx.strokeRect(startX, startY, w, h);
             try {
-                await connection.invoke("DrawShape", getUser(), "rect", { x: startX, y: startY, w, h, color, size });
+                await connection.invoke("DrawShape", getUser(), "rect", { x: startX, y: startY, w, h, color: brushColor, size });
             } catch (e) { console.error(e); }
         } else if (tool === "circle") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const dx = x - startX;
             const dy = y - startY;
             const r = Math.sqrt(dx*dx + dy*dy);
-            ctx.strokeStyle = color;
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             ctx.beginPath();
             ctx.arc(startX, startY, r, 0, Math.PI * 2);
             ctx.stroke();
             try {
-                await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color, size });
+                await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color: brushColor, size });
             } catch (e) { console.error(e); }
         } else {
+            // freehand or eraser
             try {
-                connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
+                connection.send("DrawStroke", getUser(), lastX, lastY, x, y, brushColor, size).catch(console.error);
             } catch (e) { console.error(e); }
         }
         baseImage = null;
