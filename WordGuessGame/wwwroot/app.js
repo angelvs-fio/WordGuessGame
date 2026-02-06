@@ -272,21 +272,17 @@
         
         const tool = paintTool ? paintTool.value : currentTool;
         const isEraser = tool === "eraser";
-        const brushColor = isEraser ? "eraser" : (paintColor.value || "#000");
+        const brushColor = isEraser ? "#ffffff" : (paintColor.value || "#000");
         const size = Number(paintSize.value) || 4;
         
         if (tool === "freehand" || tool === "eraser") {
-            // Local render: use destination-out for eraser to truly erase
-            const prevComp = ctx.globalCompositeOperation;
-            if (isEraser) ctx.globalCompositeOperation = "destination-out";
-            ctx.strokeStyle = isEraser ? "rgba(0,0,0,1)" : brushColor;
+            ctx.strokeStyle = brushColor;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(lastX, lastY);
             ctx.lineTo(x, y);
             ctx.stroke();
-            ctx.globalCompositeOperation = prevComp;
             const now = performance.now();
             const dx = x - lastX;
             const dy = y - lastY;
@@ -644,11 +640,8 @@
 
     function renderStroke(seg) {
         if (!ctx || !seg) return;
+        const color = seg.color || "#000";
         const size = Number(seg.size) || 4;
-        const prevComp = ctx.globalCompositeOperation;
-        const isEraseMsg = seg.color === "eraser";
-        if (isEraseMsg) ctx.globalCompositeOperation = "destination-out";
-        const color = isEraseMsg ? "rgba(0,0,0,1)" : (seg.color || "#000");
         ctx.strokeStyle = color;
         ctx.lineWidth = size;
         ctx.lineCap = "round";
@@ -656,7 +649,6 @@
         ctx.moveTo(seg.x1, seg.y1);
         ctx.lineTo(seg.x2, seg.y2);
         ctx.stroke();
-        ctx.globalCompositeOperation = prevComp;
     }
 
     function renderShape(shape) {
