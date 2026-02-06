@@ -247,36 +247,35 @@
 
     function beginDraw(ev) {
         if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
+        const tool = paintTool ? paintTool.value : currentTool;
+        if (tool === 'fill') {
+            const { x, y } = getCanvasPos(ev);
+            const color = paintColor.value || "#000";
+            bucketFill(Math.floor(x), Math.floor(y), color);
+            try {
+                connection.invoke("Fill", getUser(), Math.floor(x), Math.floor(y), color);
+            } catch (e) { console.error(e); }
+            return; // do not start dragging for fill
+        }
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
         startX = x; startY = y;
         baseImage = ctx.getImageData(0, 0, paintCanvas.width, paintCanvas.height);
         lastStrokeSentTs = performance.now();
-        
-        // For eraser and freehand, draw a dot at the starting point
-        const tool = paintTool ? paintTool.value : currentTool;
-        if (tool === "freehand" || tool === "eraser") {
-            const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
-            const size = Number(paintSize.value) || 4;
-            ctx.fillStyle = brushColor;
-            ctx.beginPath();
-            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
     }
 
     async function draw(ev) {
-        if (!ctx || !isPainter || !drawing || isGameOver || !hasAnswer) return; // gate drawing
-        const { x, y } = getCanvasPos(ev);
-        
+        if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
         const tool = paintTool ? paintTool.value : currentTool;
-        const isEraser = tool === "eraser";
-        const brushColor = isEraser ? "#ffffff" : (paintColor.value || "#000");
+        if (tool === 'fill') return; // fill does not draw on move
+        if (!drawing) return;
+        const { x, y } = getCanvasPos(ev);
+        const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        
-        if (tool === "freehand" || tool === "eraser") {
-            ctx.strokeStyle = brushColor;
+        const toolNow = paintTool ? paintTool.value : currentTool;
+        if (toolNow === "freehand") {
+            ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
             ctx.beginPath();
@@ -289,27 +288,27 @@
             const dist2 = dx * dx + dy * dy;
             if (now - lastStrokeSentTs >= STROKE_SEND_INTERVAL_MS && dist2 >= STROKE_MIN_DISTANCE * STROKE_MIN_DISTANCE) {
                 try {
-                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, brushColor, size).catch(console.error);
+                    connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
                     lastStrokeSentTs = now;
                 } catch (e) { console.error(e); }
             }
             lastX = x; lastY = y;
         } else {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
-            ctx.strokeStyle = brushColor;
+            ctx.strokeStyle = color;
             ctx.lineWidth = size;
-            if (tool === "line") {
+            if (toolNow === "line") {
                 ctx.lineCap = "round";
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
                 ctx.lineTo(x, y);
                 ctx.stroke();
-            } else if (tool === "rect") {
+            } else if (toolNow === "rect") {
                 ctx.strokeRect(startX, startY, x - startX, y - startY);
-            } else if (tool === "circle") {
+            } else if (toolNow === "circle") {
                 const dx = x - startX;
                 const dy = y - startY;
-                const r = Math.sqrt(dx*dx + dy*dy);
+                const r = Math.sqrt(dx * dx + dy * dy);
                 ctx.beginPath();
                 ctx.arc(startX, startY, r, 0, Math.PI * 2);
                 ctx.stroke();
@@ -318,20 +317,20 @@
     }
 
     async function endDraw(ev) {
-        if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
+        if (!ctx || !isPainter) { drawing = false; baseImage = null; return; }
         if (isGameOver || !hasAnswer) { drawing = false; baseImage = null; return; } // gate drawing
-        drawing = false;
-        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : null;
-        // Use last known position if no valid event (e.g., touch end without coordinates)
-        const { x, y } = pointEv ? getCanvasPos(pointEv) : { x: lastX, y: lastY };
-        
         const tool = paintTool ? paintTool.value : currentTool;
-        const brushColor = tool === "eraser" ? "#ffffff" : (paintColor.value || "#000");
+        if (tool === 'fill') { drawing = false; baseImage = null; return; }
+        if (!drawing) { drawing = false; baseImage = null; return; }
+        drawing = false;
+        const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
+        const { x, y } = getCanvasPos(pointEv);
+        const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        
-        if (tool === "line") {
+        const toolNow = paintTool ? paintTool.value : currentTool;
+        if (toolNow === "line") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
-            ctx.strokeStyle = brushColor;
+            ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
             ctx.beginPath();
@@ -339,35 +338,80 @@
             ctx.lineTo(x, y);
             ctx.stroke();
             try {
-                await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color: brushColor, size });
+                await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
             } catch (e) { console.error(e); }
-        } else if (tool === "rect") {
+        } else if (toolNow === "rect") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const w = x - startX;
             const h = y - startY;
-            ctx.strokeStyle = brushColor;
+            ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.strokeRect(startX, startY, w, h);
             try {
-                await connection.invoke("DrawShape", getUser(), "rect", { x: startX, y: startY, w, h, color: brushColor, size });
+                await connection.invoke("DrawShape", getUser(), "rect", { x: startX, y: startY, w, h, color, size });
             } catch (e) { console.error(e); }
-        } else if (tool === "circle") {
+        } else if (toolNow === "circle") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const dx = x - startX;
             const dy = y - startY;
-            const r = Math.sqrt(dx*dx + dy*dy);
-            ctx.strokeStyle = brushColor;
+            const r = Math.sqrt(dx * dx + dy * dy);
+            ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.beginPath();
             ctx.arc(startX, startY, r, 0, Math.PI * 2);
             ctx.stroke();
             try {
-                await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color: brushColor, size });
+                await connection.invoke("DrawShape", getUser(), "circle", { cx: startX, cy: startY, r, color, size });
+            } catch (e) { console.error(e); }
+        } else {
+            try {
+                connection.send("DrawStroke", getUser(), lastX, lastY, x, y, color, size).catch(console.error);
             } catch (e) { console.error(e); }
         }
-        // For freehand and eraser, do NOT send any final stroke here
-        // All strokes are already sent incrementally in draw()
         baseImage = null;
+    }
+
+    // Bucket fill implementation (4-way flood fill)
+    function bucketFill(sx, sy, colorHex) {
+        if (!ctx) return;
+        const canvasW = paintCanvas.width;
+        const canvasH = paintCanvas.height;
+        const img = ctx.getImageData(0, 0, canvasW, canvasH);
+        const data = img.data;
+
+        const targetIdx = (sy * canvasW + sx) * 4;
+        const target = [data[targetIdx], data[targetIdx+1], data[targetIdx+2], data[targetIdx+3]];
+        const fillColor = hexToRgba(colorHex);
+        if (colorsEqual(target, fillColor)) return;
+
+        const stack = [[sx, sy]];
+        while (stack.length) {
+            const [x, y] = stack.pop();
+            if (x < 0 || y < 0 || x >= canvasW || y >= canvasH) continue;
+            const idx = (y * canvasW + x) * 4;
+            const cur = [data[idx], data[idx+1], data[idx+2], data[idx+3]];
+            if (!colorsEqual(cur, target)) continue;
+            data[idx] = fillColor[0];
+            data[idx+1] = fillColor[1];
+            data[idx+2] = fillColor[2];
+            data[idx+3] = 255; // opaque
+            stack.push([x+1, y]);
+            stack.push([x-1, y]);
+            stack.push([x, y+1]);
+            stack.push([x, y-1]);
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+
+    function hexToRgba(hex) {
+        const h = hex.replace('#','');
+        const r = parseInt(h.substring(0,2), 16);
+        const g = parseInt(h.substring(2,4), 16);
+        const b = parseInt(h.substring(4,6), 16);
+        return [r,g,b,255];
+    }
+    function colorsEqual(a,b) {
+        return a[0]===b[0] && a[1]===b[1] && a[2]===b[2] && a[3]===b[3];
     }
 
     // Manage players actions
@@ -590,6 +634,13 @@
         topicInput.value = t;
     });
 
+    // Receive bucket fills
+    connection.on("Fill", payload => {
+        if (!payload) return;
+        const { x, y, color } = payload;
+        bucketFill(Math.floor(x), Math.floor(y), color);
+    });
+
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
         hasAnswer = !!state.hasAnswer;
@@ -681,7 +732,7 @@
             await loadAndRenderResultsFromFile();
             await loadTopic();
             // Removed local status override; GameState from server will drive UI
-            if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch {} }
+            if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch { } }
             applyCanvasEnablement();
         })
         .catch(err => { console.error("Connection failed:", err); statusText.textContent = "Disconnected."; });

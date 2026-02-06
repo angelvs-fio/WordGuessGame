@@ -360,6 +360,19 @@ public class GuessHub(GameService service) : Hub
         }
     }
 
+    // Painter-only: bucket fill broadcast
+    public async Task Fill(string user, int x, int y, string color)
+    {
+        if (_currentPainter != null && string.Equals(_currentPainter, user, StringComparison.Ordinal))
+        {
+            await Clients.All.SendAsync("Fill", new { x, y, color });
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("Error", "Only the current painter can use fill.");
+        }
+    }
+
     // Painter-only: set topic and broadcast
     public async Task SetTopic(string user, string topic)
     {
