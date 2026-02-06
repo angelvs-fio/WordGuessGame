@@ -247,16 +247,6 @@
 
     function beginDraw(ev) {
         if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
-        const tool = paintTool ? paintTool.value : currentTool;
-        if (tool === 'fill') {
-            const { x, y } = getCanvasPos(ev);
-            const color = paintColor.value || "#000";
-            bucketFill(Math.floor(x), Math.floor(y), color);
-            try {
-                connection.invoke("Fill", getUser(), Math.floor(x), Math.floor(y), color);
-            } catch (e) { console.error(e); }
-            return; // do not start dragging for fill
-        }
         drawing = true;
         const { x, y } = getCanvasPos(ev);
         lastX = x; lastY = y;
@@ -266,15 +256,12 @@
     }
 
     async function draw(ev) {
-        if (!ctx || !isPainter || isGameOver || !hasAnswer) return; // gate drawing
-        const tool = paintTool ? paintTool.value : currentTool;
-        if (tool === 'fill') return; // fill does not draw on move
-        if (!drawing) return;
+        if (!ctx || !isPainter || !drawing || isGameOver || !hasAnswer) return; // gate drawing
         const { x, y } = getCanvasPos(ev);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        const toolNow = paintTool ? paintTool.value : currentTool;
-        if (toolNow === "freehand") {
+        const tool = paintTool ? paintTool.value : currentTool;
+        if (tool === "freehand") {
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
             ctx.lineCap = "round";
@@ -297,15 +284,15 @@
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
-            if (toolNow === "line") {
+            if (tool === "line") {
                 ctx.lineCap = "round";
                 ctx.beginPath();
                 ctx.moveTo(startX, startY);
                 ctx.lineTo(x, y);
                 ctx.stroke();
-            } else if (toolNow === "rect") {
+            } else if (tool === "rect") {
                 ctx.strokeRect(startX, startY, x - startX, y - startY);
-            } else if (toolNow === "circle") {
+            } else if (tool === "circle") {
                 const dx = x - startX;
                 const dy = y - startY;
                 const r = Math.sqrt(dx * dx + dy * dy);
@@ -317,18 +304,15 @@
     }
 
     async function endDraw(ev) {
-        if (!ctx || !isPainter) { drawing = false; baseImage = null; return; }
+        if (!ctx || !isPainter || !drawing) { drawing = false; baseImage = null; return; }
         if (isGameOver || !hasAnswer) { drawing = false; baseImage = null; return; } // gate drawing
-        const tool = paintTool ? paintTool.value : currentTool;
-        if (tool === 'fill') { drawing = false; baseImage = null; return; }
-        if (!drawing) { drawing = false; baseImage = null; return; }
         drawing = false;
         const pointEv = (ev && (ev.clientX !== undefined || ev.pageX !== undefined)) ? ev : { clientX: lastX, clientY: lastY };
         const { x, y } = getCanvasPos(pointEv);
         const color = paintColor.value || "#000";
         const size = Number(paintSize.value) || 4;
-        const toolNow = paintTool ? paintTool.value : currentTool;
-        if (toolNow === "line") {
+        const tool = paintTool ? paintTool.value : currentTool;
+        if (tool === "line") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             ctx.strokeStyle = color;
             ctx.lineWidth = size;
@@ -340,7 +324,7 @@
             try {
                 await connection.invoke("DrawShape", getUser(), "line", { x1: startX, y1: startY, x2: x, y2: y, color, size });
             } catch (e) { console.error(e); }
-        } else if (toolNow === "rect") {
+        } else if (tool === "rect") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const w = x - startX;
             const h = y - startY;
@@ -350,7 +334,7 @@
             try {
                 await connection.invoke("DrawShape", getUser(), "rect", { x: startX, y: startY, w, h, color, size });
             } catch (e) { console.error(e); }
-        } else if (toolNow === "circle") {
+        } else if (tool === "circle") {
             if (baseImage) ctx.putImageData(baseImage, 0, 0);
             const dx = x - startX;
             const dy = y - startY;
@@ -369,49 +353,6 @@
             } catch (e) { console.error(e); }
         }
         baseImage = null;
-    }
-
-    // Bucket fill implementation (4-way flood fill)
-    function bucketFill(sx, sy, colorHex) {
-        if (!ctx) return;
-        const canvasW = paintCanvas.width;
-        const canvasH = paintCanvas.height;
-        const img = ctx.getImageData(0, 0, canvasW, canvasH);
-        const data = img.data;
-
-        const targetIdx = (sy * canvasW + sx) * 4;
-        const target = [data[targetIdx], data[targetIdx+1], data[targetIdx+2], data[targetIdx+3]];
-        const fillColor = hexToRgba(colorHex);
-        if (colorsEqual(target, fillColor)) return;
-
-        const stack = [[sx, sy]];
-        while (stack.length) {
-            const [x, y] = stack.pop();
-            if (x < 0 || y < 0 || x >= canvasW || y >= canvasH) continue;
-            const idx = (y * canvasW + x) * 4;
-            const cur = [data[idx], data[idx+1], data[idx+2], data[idx+3]];
-            if (!colorsEqual(cur, target)) continue;
-            data[idx] = fillColor[0];
-            data[idx+1] = fillColor[1];
-            data[idx+2] = fillColor[2];
-            data[idx+3] = 255; // opaque
-            stack.push([x+1, y]);
-            stack.push([x-1, y]);
-            stack.push([x, y+1]);
-            stack.push([x, y-1]);
-        }
-        ctx.putImageData(img, 0, 0);
-    }
-
-    function hexToRgba(hex) {
-        const h = hex.replace('#','');
-        const r = parseInt(h.substring(0,2), 16);
-        const g = parseInt(h.substring(2,4), 16);
-        const b = parseInt(h.substring(4,6), 16);
-        return [r,g,b,255];
-    }
-    function colorsEqual(a,b) {
-        return a[0]===b[0] && a[1]===b[1] && a[2]===b[2] && a[3]===b[3];
     }
 
     // Manage players actions
@@ -632,13 +573,6 @@
         const t = (payload && payload.topic) ? String(payload.topic) : "";
         renderTopic(t);
         topicInput.value = t;
-    });
-
-    // Receive bucket fills
-    connection.on("Fill", payload => {
-        if (!payload) return;
-        const { x, y, color } = payload;
-        bucketFill(Math.floor(x), Math.floor(y), color);
     });
 
     function updateStatus(state) {
