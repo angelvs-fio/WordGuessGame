@@ -17,7 +17,8 @@
                 <section class="user" id="userSection">
                     <!-- Painter toggle button and user name on same row -->
                     <div id="userNameRow" class="inline" style="margin-top:8px; align-items:center;">
-                        <button id="painterBtn" class="toggle-btn" aria-pressed="false" type="button">I am the painter</button>
+                        <button id="painterBtn" class="toggle-btn" aria-pressed="false" type="button">Game host</button>
+                        <button id="gameModeBtn" class="toggle-btn" aria-pressed="false" type="button" style="display:none;">Trivia Quiz</button>
                         <select id="userName" style="flex:1;">
                             <option value="" disabled selected>Select your name</option>
                         </select>
@@ -32,11 +33,36 @@
                     </div>
                 </section>
 
+                <section id="triviaQuestionSection" style="display:none;">
+                    <h2>Trivia Quiz</h2>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <label style="color:var(--muted); font-size:13px;">Question:</label>
+                        <input id="triviaQuestionInput" type="text" placeholder="Type your question here" style="width:100%;" />
+                        <label style="color:var(--muted); font-size:13px;">Answer:</label>
+                        <input id="triviaAnswerInput" type="text" placeholder="Enter the correct numeric answer" style="width:100%;" />
+                        <button id="setTriviaQuestionBtn" type="button">Set Question</button>
+                    </div>
+                </section>
+
                 <section class="guess" id="guessSection">
                     <h2>Make a Guess</h2>
                     <div class="inline">
                         <input id="guessInput" type="text" placeholder="Type your guess and press ENTER or GUESS button." />
                         <button id="guessBtn" type="button">Guess</button>
+                    </div>
+                </section>
+
+                <section id="triviaGuessSection" style="display:none;">
+                    <h2>Trivia Quiz</h2>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <label style="color:var(--muted); font-size:13px;">Question:</label>
+                        <input id="triviaQuestionDisplay" type="text" disabled placeholder="Waiting for question..." style="width:100%;" />
+                        <div id="triviaAnswerReveal" style="display:none; padding:8px; background:#0b1220; border-radius:8px; border:1px solid var(--accent); color:var(--accent); font-weight:700;"></div>
+                        <label style="color:var(--muted); font-size:13px;">Your Answer:</label>
+                        <div class="inline">
+                            <input id="triviaGuessInput" type="text" placeholder="Enter numeric answer (e.g. -3.14)" disabled />
+                            <button id="triviaGuessBtn" type="button" disabled>Submit</button>
+                        </div>
                     </div>
                 </section>
 

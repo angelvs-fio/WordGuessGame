@@ -212,6 +212,14 @@ public class GuessHub(GameService service) : Hub
     // Track which connections selected which player names
     private static readonly ConcurrentDictionary<string, string> _connToName = new();
 
+    // Trivia mode state
+    private record TriviaAnswer(string Value, DateTimeOffset SubmittedAt);
+
+    private static GameMode _gameMode = GameMode.Drawing;
+    private static string? _triviaQuestion;
+    private static string? _triviaCorrectAnswer;
+    private static readonly ConcurrentDictionary<string, TriviaAnswer> _triviaAnswers = new();
+
     private static string[] GetActivePlayers()
     {
         return _connToName.Values
@@ -230,7 +238,10 @@ public class GuessHub(GameService service) : Hub
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
             lastWinner = _svc.GetLastWinner(),
-            topic = _svc.GetTopic() ?? string.Empty
+            topic = _svc.GetTopic() ?? string.Empty,
+            gameMode = _gameMode.ToString().ToLowerInvariant(),
+            triviaQuestion = _triviaQuestion ?? string.Empty,
+            triviaAnswers = _triviaAnswers.Select(kv => new { user = kv.Key, answer = kv.Value.Value }).ToArray()
         });
 
         // Inform caller who is the current painter
@@ -299,6 +310,9 @@ public class GuessHub(GameService service) : Hub
     public async Task ResetKeepResults()
     {
         _svc.ResetKeepResults();
+        _triviaQuestion = null;
+        _triviaCorrectAnswer = null;
+        _triviaAnswers.Clear();
         await Clients.All.SendAsync("ResetKeepResults");
         // Ensure canvas is cleared for everyone
         await Clients.All.SendAsync("CanvasCleared");
@@ -308,6 +322,9 @@ public class GuessHub(GameService service) : Hub
     public async Task ResetWithResults()
     {
         _svc.ResetWithResults();
+        _triviaQuestion = null;
+        _triviaCorrectAnswer = null;
+        _triviaAnswers.Clear();
         await Clients.All.SendAsync("ResetWithResults");
         // Ensure canvas is cleared for everyone
         await Clients.All.SendAsync("CanvasCleared");
@@ -319,6 +336,95 @@ public class GuessHub(GameService service) : Hub
     {
         _currentPainter = string.IsNullOrWhiteSpace(user) ? null : user;
         return Clients.All.SendAsync("PainterSelected", new { painter = _currentPainter ?? "" });
+    }
+
+    // Switch game mode between Drawing and Trivia
+    public async Task SwitchGameMode(string mode)
+    {
+        _gameMode = string.Equals(mode, "trivia", StringComparison.OrdinalIgnoreCase)
+            ? GameMode.Trivia
+            : GameMode.Drawing;
+        _triviaQuestion = null;
+        _triviaCorrectAnswer = null;
+        _triviaAnswers.Clear();
+        await Clients.All.SendAsync("GameModeChanged", new { mode = _gameMode.ToString().ToLowerInvariant() });
+    }
+
+    // Painter sets the trivia question and correct answer
+    public async Task SetTriviaQuestion(string user, string question, string answer)
+    {
+        if (_currentPainter == null || !string.Equals(_currentPainter, user, StringComparison.Ordinal))
+        {
+            await Clients.Caller.SendAsync("Error", "Only the painter can set the trivia question.");
+            return;
+        }
+        var q = (question ?? string.Empty).Trim();
+        var a = (answer ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(q) || string.IsNullOrWhiteSpace(a))
+        {
+            await Clients.Caller.SendAsync("Error", "Question and answer are required.");
+            return;
+        }
+        _triviaQuestion = q;
+        _triviaCorrectAnswer = a;
+        _triviaAnswers.Clear();
+        await Clients.All.SendAsync("TriviaQuestionSet", new { question = q, by = user });
+    }
+
+    // Player submits a numeric answer for the active trivia question
+    public async Task SubmitTriviaAnswer(string user, string answer)
+    {
+        if (_gameMode != GameMode.Trivia || string.IsNullOrWhiteSpace(_triviaQuestion))
+        {
+            await Clients.Caller.SendAsync("Error", "No active trivia question.");
+            return;
+        }
+        var a = (answer ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(a))
+        {
+            await Clients.Caller.SendAsync("Error", "User and answer are required.");
+            return;
+        }
+        _triviaAnswers[user] = new TriviaAnswer(a, DateTimeOffset.UtcNow);
+        await Clients.All.SendAsync("TriviaAnswerSubmitted", new { user, answer = a });
+        var active = GetActivePlayers();
+        var nonPainters = active
+            .Where(p => !string.Equals(p, _currentPainter, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (nonPainters.Length > 0 && nonPainters.All(p => _triviaAnswers.ContainsKey(p)))
+            await ResolveTriviaAsync();
+    }
+
+    private async Task ResolveTriviaAsync()
+    {
+        var correctStr = _triviaCorrectAnswer ?? "0";
+        double.TryParse(correctStr, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var correctNum);
+        string? winner = null;
+        double minDiff = double.MaxValue;
+        DateTimeOffset winnerTime = DateTimeOffset.MaxValue;
+        foreach (var kvp in _triviaAnswers)
+        {
+            if (double.TryParse(kvp.Value.Value, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var playerVal))
+            {
+                var diff = Math.Abs(playerVal - correctNum);
+                if (diff < minDiff || (diff == minDiff && kvp.Value.SubmittedAt < winnerTime))
+                {
+                    minDiff = diff;
+                    winner = kvp.Key;
+                    winnerTime = kvp.Value.SubmittedAt;
+                }
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(winner))
+            _svc.IncrementPoint(winner);
+        await Clients.All.SendAsync("TriviaComplete", new
+        {
+            correctAnswer = correctStr,
+            winner = winner ?? string.Empty,
+            answers = _triviaAnswers.Select(kv => new { user = kv.Key, answer = kv.Value.Value }).ToArray()
+        });
     }
 
     // Painter-only: broadcast stroke segments to all viewers
@@ -387,6 +493,9 @@ public class GuessHub(GameService service) : Hub
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
             lastWinner = _svc.GetLastWinner(),
-            topic = _svc.GetTopic() ?? string.Empty
+            topic = _svc.GetTopic() ?? string.Empty,
+            gameMode = _gameMode.ToString().ToLowerInvariant(),
+            triviaQuestion = _triviaQuestion ?? string.Empty,
+            triviaAnswers = _triviaAnswers.Select(kv => new { user = kv.Key, answer = kv.Value.Value }).ToArray()
         });
 }

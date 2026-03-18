@@ -49,6 +49,18 @@
     const colorPalette = document.getElementById("colorPalette");
     const ctx = paintCanvas ? paintCanvas.getContext("2d") : null;
 
+    // Trivia mode elements
+    const gameModeBtn = document.getElementById("gameModeBtn");
+    const triviaQuestionSection = document.getElementById("triviaQuestionSection");
+    const triviaQuestionInput = document.getElementById("triviaQuestionInput");
+    const triviaAnswerInput = document.getElementById("triviaAnswerInput");
+    const setTriviaQuestionBtn = document.getElementById("setTriviaQuestionBtn");
+    const triviaGuessSection = document.getElementById("triviaGuessSection");
+    const triviaQuestionDisplay = document.getElementById("triviaQuestionDisplay");
+    const triviaAnswerReveal = document.getElementById("triviaAnswerReveal");
+    const triviaGuessInput = document.getElementById("triviaGuessInput");
+    const triviaGuessBtn = document.getElementById("triviaGuessBtn");
+
     // State
     let isGameOver = false;
     let hasAnswer = false; // new: gate drawing until answer is set
@@ -69,11 +81,17 @@
     // Track active players announced by server
     let activePlayers = [];
 
+    // Trivia mode state
+    let triviaMode = false;
+    let triviaQuestionText = "";
+    let myTriviaAnswerSubmitted = false;
+    const TRIVIA_NUMBER_RE = /^-?(\d+(\.\d+)?|\.(\d+))$/;
+
     // Helper: enable/disable canvas and painter controls based on state
     function applyCanvasEnablement() {
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
-        const disableCanvas = isGameOver || !hasAnswer; // disable when winner or no answer yet
+        const disableCanvas = isGameOver || !hasAnswer || triviaMode; // disable when winner, no answer, or trivia mode
         if (paintCanvas) {
             paintCanvas.classList.toggle('disabled', disableCanvas);
         }
@@ -81,6 +99,39 @@
         if (paintControls) {
             paintControls.style.display = (!disableCanvas && iAmGlobalPainter) ? 'flex' : 'none';
         }
+    }
+
+    function applyGameMode() {
+        if (!gameModeBtn) return;
+        gameModeBtn.textContent = triviaMode ? "Drawing Game" : "Trivia Quiz";
+        gameModeBtn.classList.toggle("active", triviaMode);
+        gameModeBtn.setAttribute("aria-pressed", String(triviaMode));
+        const newTitle = triviaMode ? "Trivia 2" : "Skribbl 2";
+        document.title = newTitle;
+        const h1 = document.querySelector("header h1");
+        if (h1) h1.textContent = newTitle;
+        if (triviaMode) {
+            if (painterSection) painterSection.style.display = "none";
+            if (paintSection) paintSection.style.display = "none";
+            if (guessSection) guessSection.style.display = "none";
+            if (triviaQuestionSection) triviaQuestionSection.style.display = isPainter ? "block" : "none";
+            if (triviaGuessSection) triviaGuessSection.style.display = isPainter ? "none" : "block";
+        } else {
+            if (triviaQuestionSection) triviaQuestionSection.style.display = "none";
+            if (triviaGuessSection) triviaGuessSection.style.display = "none";
+        }
+    }
+
+    function applyTriviaGuessState() {
+        if (!triviaGuessInput || !triviaGuessBtn) return;
+        const canAnswer = triviaMode
+            && !isPainter
+            && hasSelectedName()
+            && !!triviaQuestionText
+            && !myTriviaAnswerSubmitted
+            && !isGameOver;
+        triviaGuessInput.disabled = !canAnswer;
+        triviaGuessBtn.disabled = !canAnswer;
     }
 
     // Attach palette events
@@ -190,7 +241,8 @@
     function updatePainterUI() {
         painterBtn.classList.toggle("active", isPainter);
         painterBtn.setAttribute("aria-pressed", String(isPainter));
-        painterBtn.textContent = isPainter ? "I am the painter (on)" : "I am the painter";
+        painterBtn.textContent = isPainter ? "Game host (on)" : "Game host";
+        if (gameModeBtn) gameModeBtn.style.display = isPainter ? "inline-flex" : "none";
         managePlayersSection.style.display = isPainter ? "block" : "none";
         setTopicBtn.style.display = isPainter ? "inline-block" : "none";
         topicInput.style.display = isPainter ? "block" : "none";
@@ -209,17 +261,19 @@
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === me;
         resetSection.style.display = iAmGlobalPainter ? "block" : "none";
-        if (paintSection) paintSection.style.display = "block";
+        if (paintSection && !triviaMode) paintSection.style.display = "block";
         // Only show controls when I am painter AND answer is set AND game not over
-        if (paintControls) paintControls.style.display = (iAmGlobalPainter && hasAnswer && !isGameOver) ? "flex" : "none";
+        if (paintControls) paintControls.style.display = (iAmGlobalPainter && hasAnswer && !isGameOver && !triviaMode) ? "flex" : "none";
         // Update canvas enabled/disabled state
         applyCanvasEnablement();
     }
 
     function setInputsEnabled(enabled) {
         const nameSelected = hasSelectedName();
-        painterSection.style.display = isPainter ? "block" : "none";
-        guessSection.style.display = isPainter ? "none" : "block";
+        if (!triviaMode) {
+            painterSection.style.display = isPainter ? "block" : "none";
+            guessSection.style.display = isPainter ? "none" : "block";
+        }
         applyNameRowVisibility();
         answerInput.disabled = !enabled || isGameOver || !isPainter;
         setAnswerBtn.disabled = !enabled || isGameOver || !isPainter;
@@ -234,6 +288,8 @@
         painterBtn.style.display = "inline-flex";
         updatePainterUI();
         applyGlobalPainterVisibility();
+        applyGameMode();
+        applyTriviaGuessState();
     }
 
     function getCanvasPos(ev) {
@@ -439,9 +495,59 @@
         if (ev.key === "Enter" && !guessBtn.disabled) { ev.preventDefault(); guessBtn.click(); }
     });
 
+    gameModeBtn.addEventListener("click", async () => {
+        const newMode = triviaMode ? "drawing" : "trivia";
+        try { await connection.invoke("SwitchGameMode", newMode); } catch (e) { console.error(e); }
+    });
+
+    setTriviaQuestionBtn.addEventListener("click", async () => {
+        const q = (triviaQuestionInput.value || "").trim();
+        const a = (triviaAnswerInput.value || "").trim();
+        if (q.length <= 5) {
+            statusText.textContent = "Question must be longer than 5 characters.";
+            triviaQuestionInput.focus();
+            return;
+        }
+        if (!TRIVIA_NUMBER_RE.test(a)) {
+            statusText.textContent = "Answer must be a valid real number. Use '.' for decimals.";
+            triviaAnswerInput.focus();
+            return;
+        }
+        try {
+            await connection.invoke("SetTriviaQuestion", getUser(), q, a);
+        } catch (e) { console.error(e); }
+    });
+
+    triviaGuessBtn.addEventListener("click", async () => {
+        if (myTriviaAnswerSubmitted) return;
+        const ans = (triviaGuessInput.value || "").trim();
+        if (!ans) return;
+        if (!TRIVIA_NUMBER_RE.test(ans)) {
+            statusText.textContent = "Please enter a valid real number.";
+            triviaGuessInput.focus();
+            return;
+        }
+        try {
+            await connection.invoke("SubmitTriviaAnswer", getUser(), ans);
+            myTriviaAnswerSubmitted = true;
+            triviaGuessInput.disabled = true;
+            triviaGuessBtn.disabled = true;
+        } catch (e) { console.error(e); }
+    });
+
+    triviaGuessInput.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && !triviaGuessBtn.disabled) { ev.preventDefault(); triviaGuessBtn.click(); }
+    });
+
     function setResetStatus(resetMsg) {
         isGameOver = false;
         hasAnswer = false; // reset answer state
+        triviaQuestionText = "";
+        myTriviaAnswerSubmitted = false;
+        if (triviaQuestionDisplay) triviaQuestionDisplay.value = "";
+        if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
+        if (triviaGuessInput) { triviaGuessInput.value = ""; triviaGuessInput.disabled = true; }
+        if (triviaGuessBtn) triviaGuessBtn.disabled = true;
         historyList.innerHTML = "";
         statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
         setInputsEnabled(true);
@@ -499,6 +605,7 @@
         }
         applyGlobalPainterVisibility();
         applyCanvasEnablement();
+        if (triviaMode) applyGameMode();
     });
 
     connection.on("ActivePlayers", async players => {
@@ -545,6 +652,12 @@
     connection.on("Shape", shape => { renderShape(shape); });
     connection.on("CanvasCleared", () => { if (ctx) ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height); baseImage = null; });
     connection.on("ResetWithResults", async () => {
+        triviaQuestionText = "";
+        myTriviaAnswerSubmitted = false;
+        if (triviaQuestionDisplay) triviaQuestionDisplay.value = "";
+        if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
+        if (triviaGuessInput) { triviaGuessInput.value = ""; triviaGuessInput.disabled = true; }
+        if (triviaGuessBtn) triviaGuessBtn.disabled = true;
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results cleared.";
         isGameOver = false;
@@ -557,6 +670,12 @@
         applyCanvasEnablement();
     });
     connection.on("ResetKeepResults", async () => {
+        triviaQuestionText = "";
+        myTriviaAnswerSubmitted = false;
+        if (triviaQuestionDisplay) triviaQuestionDisplay.value = "";
+        if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
+        if (triviaGuessInput) { triviaGuessInput.value = ""; triviaGuessInput.disabled = true; }
+        if (triviaGuessBtn) triviaGuessBtn.disabled = true;
         historyList.innerHTML = "";
         statusText.textContent = "Game reset. Results kept.";
         isGameOver = false;
@@ -575,21 +694,99 @@
         topicInput.value = t;
     });
 
+    connection.on("GameModeChanged", payload => {
+        triviaMode = payload.mode === "trivia";
+        triviaQuestionText = "";
+        myTriviaAnswerSubmitted = false;
+        if (triviaQuestionInput) triviaQuestionInput.value = "";
+        if (triviaAnswerInput) triviaAnswerInput.value = "";
+        if (triviaQuestionDisplay) triviaQuestionDisplay.value = "";
+        if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
+        if (triviaGuessInput) { triviaGuessInput.value = ""; triviaGuessInput.disabled = true; }
+        if (triviaGuessBtn) triviaGuessBtn.disabled = true;
+        applyGameMode();
+        statusText.textContent = triviaMode
+            ? (isPainter ? "Trivia mode. Set a question!" : "Trivia mode. Waiting for question...")
+            : "Drawing mode active.";
+        if (!triviaMode) setInputsEnabled(!isGameOver);
+    });
+
+    connection.on("TriviaQuestionSet", payload => {
+        triviaQuestionText = payload.question || "";
+        myTriviaAnswerSubmitted = false;
+        if (triviaQuestionDisplay) triviaQuestionDisplay.value = triviaQuestionText;
+        if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
+        if (triviaGuessInput && !isPainter) triviaGuessInput.value = "";
+        applyTriviaGuessState();
+        statusText.textContent = isPainter
+            ? "Question set. Waiting for players to answer..."
+            : (hasSelectedName() ? "Question ready. Enter your answer!" : "Question ready. Select your name to answer!");
+    });
+
+    connection.on("TriviaAnswerSubmitted", msg => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="user">${escapeHtml(msg.user)}</span>: <span class="guess">${escapeHtml(msg.answer)}</span>`;
+        if (historyList.firstChild) {
+            historyList.insertBefore(li, historyList.firstChild);
+        } else {
+            historyList.appendChild(li);
+        }
+    });
+
+    connection.on("TriviaComplete", async payload => {
+        if (triviaAnswerReveal) {
+            triviaAnswerReveal.style.display = "block";
+            triviaAnswerReveal.textContent = `\u2705 Correct answer: ${payload.correctAnswer}`;
+        }
+        if (triviaGuessInput) triviaGuessInput.disabled = true;
+        if (triviaGuessBtn) triviaGuessBtn.disabled = true;
+        statusText.textContent = payload.winner
+            ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! Answer was: ${escapeHtml(payload.correctAnswer)}`
+            : `Answer was: ${escapeHtml(payload.correctAnswer)}. No winner determined.`;
+        await loadAndRenderResultsFromFile();
+    });
+
     function updateStatus(state) {
         isGameOver = !!state.isGameOver;
         hasAnswer = !!state.hasAnswer;
+        // Sync trivia mode from server state
+        if (state.gameMode !== undefined) {
+            triviaMode = state.gameMode === "trivia";
+        }
+        // Sync trivia question for late-joining players
+        if (state.triviaQuestion) {
+            triviaQuestionText = state.triviaQuestion;
+            if (triviaQuestionDisplay) triviaQuestionDisplay.value = triviaQuestionText;
+            applyTriviaGuessState();
+        }
+        // Populate trivia history for late-joining players
+        if (triviaMode && Array.isArray(state.triviaAnswers) && state.triviaAnswers.length > 0 && historyList.children.length === 0) {
+            state.triviaAnswers.forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = `<span class="user">${escapeHtml(item.user)}</span>: <span class="guess">${escapeHtml(item.answer)}</span>`;
+                historyList.appendChild(li);
+            });
+            const me = getUser();
+            if (me && state.triviaAnswers.some(a => a.user === me)) {
+                myTriviaAnswerSubmitted = true;
+            }
+        }
         const someoneIsPainter = !!currentPainter;
         const iAmGlobalPainter = someoneIsPainter && currentPainter === getUser();
         const nameSelected = hasSelectedName();
-        if (!state.hasAnswer && !isGameOver) {
-            statusText.textContent = "Waiting for answer...";
-        } else if (state.hasAnswer && !isGameOver) {
-            statusText.textContent = iAmGlobalPainter
-                ? "Answer set. You can start drawing!"
-                : (nameSelected ? "Answer set. Keep guessing!" : "Answer set. Please select your name and start guessing!");
-        } else {
-            const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
-            statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
+        if (!triviaMode) {
+            if (!state.hasAnswer && !isGameOver) {
+                statusText.textContent = "Waiting for answer...";
+            } else if (state.hasAnswer && !isGameOver) {
+                statusText.textContent = iAmGlobalPainter
+                    ? "Answer set. You can start drawing!"
+                    : (nameSelected ? "Answer set. Keep guessing!" : "Answer set. Please select your name and start guessing!");
+            } else {
+                const lw = state.lastWinner ? String(state.lastWinner).trim() : "";
+                statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
+            }
+        } else if (!triviaQuestionText) {
+            statusText.textContent = isPainter ? "Trivia mode. Set a question!" : "Trivia mode. Waiting for question...";
         }
         // topic always visible
         const t = state.topic ? String(state.topic) : "";

@@ -147,7 +147,7 @@ button {
 
 .status {
     font-weight: 600;
-    color: var(--accent)
+    color: #ffffff
 }
 
 /* Disabled canvas visuals */
@@ -225,6 +225,27 @@ h2 {
 .toggle-btn.active {
     background: var(--accent);
     box-shadow: 0 0 0 2px rgb(34 197 94 / .25);
+}
+
+/* Game-mode toggle – distinct orange color, fixed width */
+#gameModeBtn {
+    background: #ee9f27;
+    color: #ffffff;
+    width: 160px;
+    white-space: nowrap;
+}
+
+#gameModeBtn:active {
+    background: #c47d10;
+}
+
+#gameModeBtn.active {
+    background: #c47d10;
+    box-shadow: 0 0 0 2px rgb(238 159 39 / .4);
+}
+
+#gameModeBtn.active:active {
+    background: #a56800;
 }
 
 #resetSection {
