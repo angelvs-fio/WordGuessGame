@@ -740,8 +740,11 @@
         }
         if (triviaGuessInput) triviaGuessInput.disabled = true;
         if (triviaGuessBtn) triviaGuessBtn.disabled = true;
+        const winnerAnswer = payload.winner && Array.isArray(payload.answers)
+            ? (payload.answers.find(a => a.user === payload.winner)?.answer ?? "")
+            : "";
         statusText.textContent = payload.winner
-            ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! Answer was: ${escapeHtml(payload.correctAnswer)}`
+            ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${escapeHtml(winnerAnswer)}`
             : `Answer was: ${escapeHtml(payload.correctAnswer)}. No winner determined.`;
         await loadAndRenderResultsFromFile();
     });
