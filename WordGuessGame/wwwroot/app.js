@@ -61,6 +61,10 @@
     const triviaGuessInput = document.getElementById("triviaGuessInput");
     const triviaGuessBtn = document.getElementById("triviaGuessBtn");
 
+    // Word count display
+    const wordCountDisplay = document.getElementById("wordCountDisplay");
+    const wordCountValue = document.getElementById("wordCountValue");
+
     // State
     let isGameOver = false;
     let hasAnswer = false; // new: gate drawing until answer is set
@@ -132,6 +136,11 @@
             && !isGameOver;
         triviaGuessInput.disabled = !canAnswer;
         triviaGuessBtn.disabled = !canAnswer;
+    }
+
+    function updateWordCount(count) {
+        if (!wordCountDisplay || !wordCountValue) return;
+        wordCountValue.textContent = count > 0 ? (count === 1 ? "1 word" : `${count} words`) : "0";
     }
 
     // Attach palette events
@@ -474,7 +483,7 @@
     setAnswerBtn.addEventListener("click", async () => {
         const answer = (answerInput.value || "").trim();
         if (!answer) return;
-        try { await connection.invoke("SetAnswer", getUser(), answer); answerInput.value = ""; } catch (e) { console.error(e); }
+        try { await connection.invoke("SetAnswer", getUser(), answer); } catch (e) { console.error(e); }
     });
 
 
@@ -544,6 +553,8 @@
         hasAnswer = false; // reset answer state
         triviaQuestionText = "";
         myTriviaAnswerSubmitted = false;
+        answerInput.value = "";
+        updateWordCount(0);
         if (triviaQuestionDisplay) triviaQuestionDisplay.value = "";
         if (triviaAnswerReveal) { triviaAnswerReveal.style.display = "none"; triviaAnswerReveal.textContent = ""; }
         if (triviaGuessInput) { triviaGuessInput.value = ""; triviaGuessInput.disabled = true; }
@@ -623,6 +634,7 @@
             ? "Answer set. You can start drawing!"
             : (nameSelected ? `Answer set by ${payload.by}. Start guessing!` : `Answer set by ${payload.by}. Please select your name and start guessing!`);
         hasAnswer = true; // enable canvas now
+        if (payload.wordCount > 0) updateWordCount(payload.wordCount);
         applyCanvasEnablement();
         await loadAndRenderResultsFromFile();
     });
@@ -662,6 +674,7 @@
         statusText.textContent = "Game reset. Results cleared.";
         isGameOver = false;
         hasAnswer = false;
+        updateWordCount(0);
         setInputsEnabled(true);
         activePlayers = [];
         await populateNames();
@@ -680,6 +693,7 @@
         statusText.textContent = "Game reset. Results kept.";
         isGameOver = false;
         hasAnswer = false;
+        updateWordCount(0);
         setInputsEnabled(true);
         activePlayers = [];
         await populateNames();
@@ -795,6 +809,10 @@
         const t = state.topic ? String(state.topic) : "";
         renderTopic(t);
         topicInput.value = t;
+        if (!triviaMode) {
+            if (state.hasAnswer && state.answerWordCount > 0) updateWordCount(state.answerWordCount);
+            else if (!state.hasAnswer) updateWordCount(0);
+        }
         setInputsEnabled(!isGameOver);
         applyCanvasEnablement();
     }

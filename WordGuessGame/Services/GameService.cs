@@ -37,6 +37,10 @@ public sealed class GameService
 
     public bool IsGameOver => _isGameOver;
     public bool HasAnswer => !string.IsNullOrWhiteSpace(_answerWord);
+    public int AnswerWordCount =>
+        string.IsNullOrWhiteSpace(_answerWord)
+            ? 0
+            : _answerWord.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
 
     public void ResetGame(bool keepResults)
     {

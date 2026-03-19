@@ -234,6 +234,7 @@ public class GuessHub(GameService service) : Hub
         await Clients.Caller.SendAsync("GameState", new
         {
             hasAnswer = _svc.HasAnswer,
+            answerWordCount = _svc.AnswerWordCount,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
@@ -280,7 +281,7 @@ public class GuessHub(GameService service) : Hub
             await Clients.Caller.SendAsync("Error", "Answer already set or game over.");
             return;
         }
-        await Clients.All.SendAsync("AnswerSet", new { by = user });
+        await Clients.All.SendAsync("AnswerSet", new { by = user, wordCount = _svc.AnswerWordCount });
         await BroadcastState();
     }
 
@@ -489,6 +490,7 @@ public class GuessHub(GameService service) : Hub
         Clients.All.SendAsync("GameState", new
         {
             hasAnswer = _svc.HasAnswer,
+            answerWordCount = _svc.AnswerWordCount,
             isGameOver = _svc.IsGameOver,
             history = _svc.GetHistory(),
             stats = _svc.GetStats(),
