@@ -360,7 +360,7 @@ public class GuessHub(GameService service) : Hub
             return;
         }
         var q = (question ?? string.Empty).Trim();
-        var a = (answer ?? string.Empty).Trim();
+        var a = (answer ?? string.Empty).Trim().Replace(" ", "");
         if (string.IsNullOrWhiteSpace(q) || string.IsNullOrWhiteSpace(a))
         {
             await Clients.Caller.SendAsync("Error", "Question and answer are required.");
@@ -380,7 +380,7 @@ public class GuessHub(GameService service) : Hub
             await Clients.Caller.SendAsync("Error", "No active trivia question.");
             return;
         }
-        var a = (answer ?? string.Empty).Trim();
+        var a = (answer ?? string.Empty).Trim().Replace(" ", "");
         if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(a))
         {
             await Clients.Caller.SendAsync("Error", "User and answer are required.");

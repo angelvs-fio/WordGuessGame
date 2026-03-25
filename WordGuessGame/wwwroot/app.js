@@ -91,6 +91,14 @@
     let myTriviaAnswerSubmitted = false;
     const TRIVIA_NUMBER_RE = /^-?(\d+(\.\d+)?|\.(\d+))$/;
 
+    // Format a clean numeric string with space as thousands separator (e.g. "1000000" → "1 000 000")
+    function formatThousands(numStr) {
+        const match = String(numStr).match(/^(-?)(\d+)(\..*)?$/);
+        if (!match) return numStr;
+        const [, sign, intPart, dec = ""] = match;
+        return sign + intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0") + dec;
+    }
+
     // Helper: enable/disable canvas and painter controls based on state
     function applyCanvasEnablement() {
         const someoneIsPainter = !!currentPainter;
@@ -511,7 +519,7 @@
 
     setTriviaQuestionBtn.addEventListener("click", async () => {
         const q = (triviaQuestionInput.value || "").trim();
-        const a = (triviaAnswerInput.value || "").trim();
+        const a = (triviaAnswerInput.value || "").trim().replace(/\s+/g, "");
         if (q.length <= 5) {
             statusText.textContent = "Question must be longer than 5 characters.";
             triviaQuestionInput.focus();
@@ -529,7 +537,7 @@
 
     triviaGuessBtn.addEventListener("click", async () => {
         if (myTriviaAnswerSubmitted) return;
-        const ans = (triviaGuessInput.value || "").trim();
+        const ans = (triviaGuessInput.value || "").trim().replace(/\s+/g, "");
         if (!ans) return;
         if (!TRIVIA_NUMBER_RE.test(ans)) {
             statusText.textContent = "Please enter a valid real number.";
@@ -739,7 +747,7 @@
 
     connection.on("TriviaAnswerSubmitted", msg => {
         const li = document.createElement("li");
-        li.innerHTML = `<span class="user">${escapeHtml(msg.user)}</span>: <span class="guess">${escapeHtml(msg.answer)}</span>`;
+        li.innerHTML = `<span class="user">${escapeHtml(msg.user)}</span>: <span class="guess">${escapeHtml(formatThousands(msg.answer))}</span>`;
         if (historyList.firstChild) {
             historyList.insertBefore(li, historyList.firstChild);
         } else {
@@ -750,7 +758,7 @@
     connection.on("TriviaComplete", async payload => {
         if (triviaAnswerReveal) {
             triviaAnswerReveal.style.display = "block";
-            triviaAnswerReveal.textContent = `\u2705 Correct answer: ${payload.correctAnswer}`;
+            triviaAnswerReveal.textContent = `\u2705 Correct answer: ${formatThousands(payload.correctAnswer)}`;
         }
         if (triviaGuessInput) triviaGuessInput.disabled = true;
         if (triviaGuessBtn) triviaGuessBtn.disabled = true;
@@ -758,8 +766,8 @@
             ? (payload.answers.find(a => a.user === payload.winner)?.answer ?? "")
             : "";
         statusText.textContent = payload.winner
-            ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${escapeHtml(winnerAnswer)}`
-            : `Answer was: ${escapeHtml(payload.correctAnswer)}. No winner determined.`;
+            ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${formatThousands(winnerAnswer)}`
+            : `Answer was: ${formatThousands(payload.correctAnswer)}. No winner determined.`;
         await loadAndRenderResultsFromFile();
     });
 
