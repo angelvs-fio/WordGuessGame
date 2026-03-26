@@ -1,7 +1,11 @@
 ﻿(() => {
     const connection = new signalR.HubConnectionBuilder()
         .withUrl("hub/guess")
-        .withAutomaticReconnect()
+        .withAutomaticReconnect({
+            // Retry indefinitely: 500 ms, 1 s, 2 s, 4 s … capped at 30 s
+            nextRetryDelayInMilliseconds: retryContext =>
+                Math.min(500 * Math.pow(2, retryContext.previousRetryCount), 30000)
+        })
         .build();
 
     // Elements

@@ -24,7 +24,13 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // Give clients more headroom during brief network blips while drawing
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);  // default: 30 s
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);       // default: 15 s (explicit)
+    options.HandshakeTimeout = TimeSpan.FromSeconds(30);        // default: 15 s
+});
 
 // Persistence store selection: prefer Upstash if configured, else file
 var upstashUrl = builder.Configuration["UPSTASH_REDIS_REST_URL"];
