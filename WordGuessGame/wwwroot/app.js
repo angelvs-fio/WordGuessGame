@@ -99,6 +99,33 @@
         return sign + intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0") + dec;
     }
 
+    // Format a partially-typed numeric string for live input (regular space, handles incomplete values)
+    function formatThousandsInput(str) {
+        const match = str.match(/^(-?)(\d*)(\.?\d*)$/);
+        if (!match) return str;
+        const [, sign, intPart, dec] = match;
+        return sign + intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + dec;
+    }
+
+    // Attach live thousands-separator formatting to a numeric input, preserving cursor position
+    function applyThousandsFormatting(input) {
+        input.addEventListener("input", () => {
+            const cursorPos = input.selectionStart;
+            const raw = input.value;
+            const rawCharsBeforeCursor = raw.slice(0, cursorPos).replace(/ /g, "").length;
+            const formatted = formatThousandsInput(raw.replace(/ /g, ""));
+            if (formatted === raw) return;
+            input.value = formatted;
+            let count = 0;
+            let newPos = 0;
+            for (let i = 0; i < formatted.length; i++) {
+                if (formatted[i] !== " ") count++;
+                if (count === rawCharsBeforeCursor) { newPos = i + 1; break; }
+            }
+            input.setSelectionRange(newPos, newPos);
+        });
+    }
+
     // Helper: enable/disable canvas and painter controls based on state
     function applyCanvasEnablement() {
         const someoneIsPainter = !!currentPainter;
@@ -527,6 +554,7 @@
         }
         if (!TRIVIA_NUMBER_RE.test(a)) {
             statusText.textContent = "Answer must be a valid real number. Use '.' for decimals.";
+
             triviaAnswerInput.focus();
             return;
         }
@@ -555,6 +583,9 @@
     triviaGuessInput.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter" && !triviaGuessBtn.disabled) { ev.preventDefault(); triviaGuessBtn.click(); }
     });
+
+    applyThousandsFormatting(triviaAnswerInput);
+    applyThousandsFormatting(triviaGuessInput);
 
     function setResetStatus(resetMsg) {
         isGameOver = false;
