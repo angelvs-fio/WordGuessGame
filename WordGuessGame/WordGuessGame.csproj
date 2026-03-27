@@ -7,7 +7,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\app.js" />
     <None Include="wwwroot\index.html" />
   </ItemGroup>
 
