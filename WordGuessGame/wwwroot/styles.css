@@ -140,6 +140,16 @@ button {
     cursor: pointer
 }
 
+.ai-btn {
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    color: #ffffff;
+    transition: filter 0.2s
+}
+
+.ai-btn:hover:not(:disabled) {
+    filter: brightness(1.15)
+}
+
     button:disabled {
         opacity: .5;
         cursor: not-allowed

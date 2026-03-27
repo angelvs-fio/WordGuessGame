@@ -41,6 +41,7 @@ export const gameModeBtn = document.getElementById("gameModeBtn");
 export const triviaQuestionSection = document.getElementById("triviaQuestionSection");
 export const triviaQuestionInput = document.getElementById("triviaQuestionInput");
 export const triviaAnswerInput = document.getElementById("triviaAnswerInput");
+export const generateTriviaBtn = document.getElementById("generateTriviaBtn");
 export const setTriviaQuestionBtn = document.getElementById("setTriviaQuestionBtn");
 export const triviaGuessSection = document.getElementById("triviaGuessSection");
 export const triviaQuestionDisplay = document.getElementById("triviaQuestionDisplay");

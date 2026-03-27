@@ -104,6 +104,31 @@ dom.gameModeBtn.addEventListener("click", async () => {
     try { await connection.invoke("SwitchGameMode", newMode); } catch (e) { console.error(e); }
 });
 
+// --- Trivia: AI question generator ---
+dom.generateTriviaBtn.addEventListener("click", async () => {
+    const btn = dom.generateTriviaBtn;
+    const originalText = btn.textContent;
+    btn.textContent = "⏳ Generating...";
+    btn.disabled = true;
+    try {
+        const res = await fetch("/trivia/generate");
+        const data = await res.json();
+        if (!res.ok) {
+            dom.statusText.textContent = data.error || `AI generation failed (${res.status}).`;
+            return;
+        }
+        dom.triviaQuestionInput.value = data.question;
+        dom.triviaAnswerInput.value = data.answer;
+        dom.triviaAnswerInput.dispatchEvent(new Event("input"));
+    } catch (e) {
+        console.error("AI generation error:", e);
+        dom.statusText.textContent = "AI generation failed. Check your connection.";
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+});
+
 // --- Trivia: set question ---
 dom.setTriviaQuestionBtn.addEventListener("click", async () => {
     const q = (dom.triviaQuestionInput.value || "").trim();

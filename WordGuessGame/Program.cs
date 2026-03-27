@@ -1,12 +1,10 @@
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using WordGuessGame.Models;
 using WordGuessGame.Models.Enums;
 using WordGuessGame.Services;
 using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +29,8 @@ builder.Services.AddSignalR(options =>
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);       // default: 15 s (explicit)
     options.HandshakeTimeout = TimeSpan.FromSeconds(30);        // default: 15 s
 });
+
+builder.Services.AddHttpClient();
 
 // Persistence store selection: prefer Upstash if configured, else file
 var upstashUrl = builder.Configuration["UPSTASH_REDIS_REST_URL"];
@@ -205,6 +205,117 @@ app.MapPost("/players/manage/remove", (HttpContext ctx, IResultsStore store) =>
     }
     var players = upstash.GetPlayers();
     return Results.Json(new { players, results = current.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => new { name = kv.Key, points = kv.Value }) });
+});
+
+// AI-powered trivia question generator (Groq — free tier, no credit card needed)
+app.MapGet("/trivia/generate", async (IConfiguration config, IHttpClientFactory httpClientFactory) =>
+{
+    var apiKey = config["Groq:ApiKey"];
+    if (string.IsNullOrWhiteSpace(apiKey))
+        return Results.Json(new { error = "Groq API key not configured." }, statusCode: 503);
+
+    const string prompt =
+        "Generate one interesting fact trivia question where the answer is a real number. " +
+        "Categories: animal biology (speeds, sizes, weights, lifespans), " +
+        "machines & engineering (power, speed, records), astronomy (distances, temperatures, sizes), " +
+        "geography (heights, depths, lengths), physics & chemistry (constants, temperatures), world records. " +
+        "Rules:\n" +
+        "- The \"question\" field must be a full question sentence that asks for the numeric value (include the unit in the question text).\n" +
+        "- The \"answer\" field must contain ONLY the numeric value, no text, no units. Can be integer or decimal, positive or negative.\n" +
+        "- CRITICAL: Do NOT include the numeric answer value anywhere inside the question text. The question must ask for the number, not state it.\n" +
+        "Good example: {\"question\": \"How fast can a cheetah run in km/h?\", \"answer\": \"112\"}\n" +
+        "Bad example (forbidden): {\"question\": \"A cheetah runs at 112 km/h. What is this speed?\", \"answer\": \"112\"}\n" +
+        "Now generate a NEW question following the good example format.";
+
+    var numericPattern = @"^-?(\d+(\.\d+)?|\.\d+)$";
+    var client = httpClientFactory.CreateClient();
+    string? lastValidationError = null;
+
+    for (int attempt = 0; attempt < 3; attempt++)
+    {
+        try
+        {
+            var requestBody = new
+            {
+                model = "llama-3.1-8b-instant",
+                temperature = 0.9,
+                response_format = new { type = "json_object" },
+                messages = new[]
+                {
+                    new { role = "system", content = "You are a trivia question generator. Always respond with valid JSON only." },
+                    new { role = "user", content = prompt }
+                }
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions");
+            request.Headers.Add("Authorization", $"Bearer {apiKey}");
+            request.Content = JsonContent.Create(requestBody);
+
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var hint = (int)response.StatusCode switch
+                {
+                    401 => "Invalid API key. Check your Groq:ApiKey config.",
+                    429 => "Rate limit exceeded. Try again in a moment.",
+                    503 => "Groq service is temporarily unavailable. Try again later.",
+                    _ => $"Groq request failed ({(int)response.StatusCode})."
+                };
+                return Results.Json(new { error = hint }, statusCode: (int)response.StatusCode);
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var content = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString() ?? "";
+
+            using var trivia = JsonDocument.Parse(content.Trim());
+            var question = trivia.RootElement.GetProperty("question").GetString()?.Trim() ?? "";
+            var answerEl = trivia.RootElement.GetProperty("answer");
+            var answer = answerEl.ValueKind == JsonValueKind.Number
+                ? answerEl.GetRawText()
+                : (answerEl.GetString()?.Trim() ?? "");
+            answer = answer.Replace(" ", "").Replace("\u00A0", "").Replace(",", ".");
+
+            if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(answer))
+            {
+                lastValidationError = "Invalid response from AI.";
+                continue;
+            }
+
+            // Auto-swap if the model returned the fields in reverse order
+            if (!Regex.IsMatch(answer, numericPattern) && Regex.IsMatch(question, numericPattern))
+                (question, answer) = (answer, question);
+
+            if (!Regex.IsMatch(answer, numericPattern))
+            {
+                lastValidationError = "AI returned a non-numeric answer.";
+                continue;
+            }
+
+            // Retry if the answer number appears inside the question text
+            if (answer.Length >= 1 && Regex.IsMatch(question, $@"(?<![0-9.]){Regex.Escape(answer)}(?![0-9.])"))
+            {
+                lastValidationError = "AI revealed the answer in the question.";
+                continue;
+            }
+
+            return Results.Json(new { question, answer });
+        }
+        catch (JsonException)
+        {
+            lastValidationError = "AI returned malformed JSON.";
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    }
+
+    return Results.Json(new { error = lastValidationError ?? "AI failed to generate a valid question. Please try again." }, statusCode: 500);
 });
 
 app.Run();
