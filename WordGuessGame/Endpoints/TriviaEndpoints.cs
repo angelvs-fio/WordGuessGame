@@ -95,12 +95,13 @@ public static class TriviaEndpoints
                 $"Generate one interesting and lesser-known trivia question specifically about: {category}. " +
                 "The answer must be a real number. " +
                 "Rules:\n" +
-                "- The \"question\" field must be a full question sentence that asks for the numeric value (include the unit in the question text).\n" +
+                "- The \"question\" field must be a clear question sentence asking for the numeric value. Do NOT include the unit inside the question sentence itself.\n" +
+                "- The \"unit\" field must contain only the unit of measurement (e.g. \"km/h\", \"°C\", \"metres\", \"kg\", \"years\"). Keep it short.\n" +
                 "- The \"answer\" field must contain ONLY the numeric value, no text, no units. Can be integer or decimal, positive or negative.\n" +
                 "- CRITICAL: Do NOT include the numeric answer value anywhere inside the question text. The question must ask for the number, not state it.\n" +
                 "- Choose an unusual or surprising fact — avoid the most commonly known examples.\n" +
-                "Good example: {\"question\": \"How fast can a cheetah run in km/h?\", \"answer\": \"112\"}\n" +
-                "Bad example (forbidden): {\"question\": \"A cheetah runs at 112 km/h. What is this speed?\", \"answer\": \"112\"}\n" +
+                "Good example: {\"question\": \"How fast can a cheetah run?\", \"unit\": \"km/h\", \"answer\": \"112\"}\n" +
+                "Bad example (forbidden): {\"question\": \"A cheetah runs at 112 km/h. What is this speed?\", \"unit\": \"km/h\", \"answer\": \"112\"}\n" +
                 "Now generate a NEW question following the good example format.";
 
             var numericPattern = @"^-?(\d+(\.\d+)?|\.\d+)$";
@@ -155,6 +156,14 @@ public static class TriviaEndpoints
                         ? answerEl.GetRawText()
                         : (answerEl.GetString()?.Trim() ?? "");
                     answer = answer.Replace(" ", "").Replace("\u00A0", "").Replace(",", ".");
+
+                    // Append the unit in brackets to the question if the AI returned one
+                    if (trivia.RootElement.TryGetProperty("unit", out var unitEl))
+                    {
+                        var unit = unitEl.GetString()?.Trim() ?? "";
+                        if (!string.IsNullOrWhiteSpace(unit))
+                            question = $"{question} [{unit}]";
+                    }
 
                     if (string.IsNullOrWhiteSpace(question) || string.IsNullOrWhiteSpace(answer))
                     {
