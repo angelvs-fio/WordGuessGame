@@ -210,7 +210,7 @@ app.MapPost("/players/manage/remove", (HttpContext ctx, IResultsStore store) =>
 // AI-powered trivia question generator (Groq — free tier, no credit card needed)
 app.MapGet("/trivia/generate", async (IConfiguration config, IHttpClientFactory httpClientFactory) =>
 {
-    var apiKey = config["Groq:ApiKey"];
+    var apiKey = config["GROQ_API_KEY"];
     if (string.IsNullOrWhiteSpace(apiKey))
         return Results.Json(new { error = "Groq API key not configured." }, statusCode: 503);
 
