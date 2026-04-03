@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.SignalR;
 using WordGuessGame.Hubs;
 using WordGuessGame.Services;
 
-namespace WordGuessGame.Endpoints;
+namespace WordGuessGame.Controllers;
 
-public static class GameEndpoints
+public static class GameController
 {
-    public static IEndpointRouteBuilder MapGameEndpoints(this IEndpointRouteBuilder app)
+    public static IEndpointRouteBuilder MapGameController(this IEndpointRouteBuilder app)
     {
         // Health endpoint
         app.MapGet("/health", () => Results.Json(new { status = "ok" }));

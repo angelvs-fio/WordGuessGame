@@ -108,6 +108,8 @@ public static class ServiceCollectionExtensions
             return new GameService(store, reg);
         });
 
+        services.AddSingleton<TriviaService>();
+
         return services;
     }
 }

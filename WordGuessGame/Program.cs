@@ -1,4 +1,4 @@
-using WordGuessGame.Endpoints;
+using WordGuessGame.Controllers;
 using WordGuessGame.Extensions;
 using WordGuessGame.Hubs;
 
@@ -23,7 +23,7 @@ app.UseCors();
 
 app.MapHub<GuessHub>("/hub/guess");
 
-app.MapGameEndpoints();
-app.MapTriviaEndpoints();
+app.MapGameController();
+app.MapTriviaController();
 
 app.Run();
