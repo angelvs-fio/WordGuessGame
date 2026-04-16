@@ -94,15 +94,16 @@ public class TriviaService(IConfiguration config, IHttpClientFactory httpClientF
         var category = Categories[Random.Shared.Next(Categories.Length)];
 
         var prompt =
-            $"Generate one interesting and lesser-known trivia question specifically about: {category}. " +
+            $"Generate one interesting and trivia question specifically about: {category}. " +
+            "Generate a trivia question based on well-documented, widely accepted facts. Avoid obscure or uncertain data." +
             "The answer of that question must be a real number. " +
             "Rules:\n" +
             "- The \"question\" field must be a clear question sentence asking for a numeric value. Do NOT include the unit inside the question sentence itself.\n" +
             "- The \"unit\" field must contain only the unit of measurement (e.g. \"km/h\", \"°C\", \"metres\", \"kg\", \"years\"). Keep it short.\n" +
             "- The \"answer\" field must contain ONLY the numeric value, no text, no units. Can be integer or decimal, positive or negative.\n" +
             "- CRITICAL: Do NOT include the numeric answer value anywhere inside the question text. The question must ask for the number, not state it.\n" +
-            "- Choose an unusual or surprising fact — avoid the most commonly known examples.\n" +
-            "- Make sure the answer is related to the question and it is correct.\n" +
+            "- After generating the answer, internally verify if the numeric value is accurate. If unsure, generate a different question.\n" +
+            "- Do NOT generate obscure or uncertain facts.\n" +
             "Good example: {\"question\": \"How fast can a cheetah run?\", \"unit\": \"km/h\", \"answer\": \"110\"}\n" +
             "Bad example (forbidden): {\"question\": \"A cheetah runs at 110 km/h. What is this speed?\", \"unit\": \"km/h\", \"answer\": \"110\"}\n" +
             "Now generate a NEW question following the good example format.";
@@ -117,8 +118,8 @@ public class TriviaService(IConfiguration config, IHttpClientFactory httpClientF
             {
                 var requestBody = new
                 {
-                    model = "moonshotai/kimi-k2-instruct",
-                    temperature = 0.9,
+                    model = "openai/gpt-oss-120b",
+                    temperature = 0.0,
                     response_format = new { type = "json_object" },
                     messages = new[]
                     {
