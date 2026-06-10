@@ -69,7 +69,12 @@ public class GuessHub(GameService service) : Hub
     public async Task SetUserName(string name)
     {
         var n = (name ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(n)) return;
+        if (string.IsNullOrWhiteSpace(n))
+        {
+            _connToName.TryRemove(Context.ConnectionId, out _);
+            await Clients.All.SendAsync("ActivePlayers", GetActivePlayers());
+            return;
+        }
 
         _connToName[Context.ConnectionId] = n;
         await Clients.All.SendAsync("ActivePlayers", GetActivePlayers());

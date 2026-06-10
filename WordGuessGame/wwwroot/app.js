@@ -54,6 +54,11 @@ dom.painterBtn.addEventListener("click", async () => {
     try {
         const me = getUser();
         await connection.invoke("SelectPainter", state.isPainter ? me : null);
+        if (state.isPainter) {
+            await connection.invoke("SetUserName", "");
+        } else if (hasSelectedName()) {
+            await connection.invoke("SetUserName", getUser());
+        }
     } catch (e) { console.error(e); }
     if (state.isPainter && !state.hasAnswer && !state.isGameOver) {
         dom.statusText.textContent = "Waiting for answer...";
