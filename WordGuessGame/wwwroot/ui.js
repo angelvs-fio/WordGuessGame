@@ -2,6 +2,68 @@ import { state } from "./state.js";
 import * as dom from "./dom.js";
 import { escapeHtml, formatThousands } from "./utils.js";
 
+const HISTORY_VISIBLE_COUNT = 9;
+const WINNERS_HISTORY_VISIBLE_COUNT = 5;
+
+function updateExpandButton(listEl, btnEl, visibleCount) {
+    if (!listEl || !btnEl) return;
+    const total = listEl.children.length;
+    if (total <= visibleCount) {
+        listEl.classList.remove("expanded");
+        btnEl.style.display = "none";
+        return;
+    }
+    btnEl.style.display = "block";
+    const expanded = listEl.classList.contains("expanded");
+    btnEl.textContent = expanded ? "Show less" : `Show more (${total - visibleCount} more)`;
+}
+
+export function updateHistoryExpandButton() {
+    updateExpandButton(dom.historyList, dom.historyExpandBtn, HISTORY_VISIBLE_COUNT);
+}
+
+export function toggleHistoryExpand() {
+    if (!dom.historyList) return;
+    dom.historyList.classList.toggle("expanded");
+    updateHistoryExpandButton();
+}
+
+export function updateWinnersHistoryExpandButton() {
+    updateExpandButton(dom.winnersHistoryList, dom.winnersHistoryExpandBtn, WINNERS_HISTORY_VISIBLE_COUNT);
+}
+
+export function toggleWinnersHistoryExpand() {
+    if (!dom.winnersHistoryList) return;
+    dom.winnersHistoryList.classList.toggle("expanded");
+    updateWinnersHistoryExpandButton();
+}
+
+function formatWinnerDate(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export async function loadWinnersHistory() {
+    if (!dom.winnersHistoryList) return;
+    try {
+        const res = await fetch("winners/history");
+        if (!res.ok) throw new Error(`winners/history ${res.status}`);
+        const items = await res.json();
+        dom.winnersHistoryList.innerHTML = "";
+        (Array.isArray(items) ? items : []).forEach(item => {
+            const li = document.createElement("li");
+            const dateStr = formatWinnerDate(item.date);
+            li.innerHTML = `<span class="user">${escapeHtml(item.player)}</span>` +
+                (dateStr ? ` <span class="guess">${escapeHtml(dateStr)}</span>` : "");
+            dom.winnersHistoryList.appendChild(li);
+        });
+        updateWinnersHistoryExpandButton();
+    } catch (e) {
+        console.error("Failed to load winners history:", e);
+    }
+}
+
 export function hasSelectedName() {
     return !!(dom.userNameInput.value && dom.userNameInput.value.trim().length);
 }
@@ -206,6 +268,7 @@ export function updateStatus(serverState) {
             li.innerHTML = `<span class="user">${escapeHtml(item.user)}</span>: <span class="guess">${escapeHtml(item.answer)}</span>`;
             dom.historyList.appendChild(li);
         });
+        updateHistoryExpandButton();
         const me = getUser();
         if (me && serverState.triviaAnswers.some(a => a.user === me)) {
             state.myTriviaAnswerSubmitted = true;

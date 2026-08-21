@@ -13,6 +13,9 @@ public interface IResultsStore
     void SetLastWinner(string winner);
     string? GetTopic();
     void SetTopic(string topic);
+    IReadOnlyList<WinnerRecord> GetWinnersHistory();
+    void AddWinnerHistory(string player, DateTimeOffset when);
+    void ClearWinnersHistory();
 }
 
 public sealed class GameService
@@ -53,7 +56,10 @@ public sealed class GameService
         }
 
         if (!keepResults)
+        {
             ResetResultsToZero();
+            _store.ClearWinnersHistory();
+        }
     }
 
     public void ResetKeepResults() => ResetGame(keepResults: true);
@@ -145,9 +151,12 @@ public sealed class GameService
         dict[winner] += 1;
         _store.WriteResults(dict);
         _store.SetLastWinner(winner);
+        _store.AddWinnerHistory(winner, DateTimeOffset.UtcNow);
     }
 
     public string? GetLastWinner() => _store.GetLastWinner();
+    public IReadOnlyList<WinnerRecord> GetWinnersHistory() =>
+        _store.GetWinnersHistory().OrderByDescending(w => w.Date).ToList();
 
     public string? GetTopic() => _store.GetTopic();
     public void SetTopic(string topic)

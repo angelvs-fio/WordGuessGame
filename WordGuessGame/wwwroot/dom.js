@@ -15,6 +15,7 @@ export const resetKeepResultsBtn = document.getElementById("resetKeepResultsBtn"
 
 export const statusText = document.getElementById("statusText");
 export const historyList = document.getElementById("historyList");
+export const historyExpandBtn = document.getElementById("historyExpandBtn");
 export const resultsBody = document.getElementById("resultsBody");
 
 export const topicLabel = document.getElementById("topicLabel");
@@ -26,6 +27,9 @@ export const managePlayersSection = document.getElementById("managePlayersSectio
 export const managePlayerName = document.getElementById("managePlayerName");
 export const addPlayerBtn = document.getElementById("addPlayerBtn");
 export const deletePlayerBtn = document.getElementById("deletePlayerBtn");
+
+export const winnersHistoryList = document.getElementById("winnersHistoryList");
+export const winnersHistoryExpandBtn = document.getElementById("winnersHistoryExpandBtn");
 
 export const paintSection = document.getElementById("paintSection");
 export const paintCanvas = document.getElementById("paintCanvas");

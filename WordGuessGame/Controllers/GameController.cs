@@ -57,6 +57,14 @@ public static class GameController
             return Results.Json(new { topic });
         });
 
+        // Winners history: ordered most-recent-first
+        app.MapGet("/winners/history", (GameService svc) =>
+        {
+            var history = svc.GetWinnersHistory();
+            var ordered = history.Select(w => new { player = w.Player, date = w.Date });
+            return Results.Json(ordered);
+        });
+
         // Manage players: add/remove in Redis players set (Upstash store only)
         app.MapPost("/players/manage/add", (HttpContext ctx, IResultsStore store) =>
         {

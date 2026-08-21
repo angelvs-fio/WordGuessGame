@@ -1,12 +1,16 @@
 using System.Text.Json;
+using WordGuessGame.Models;
 
 namespace WordGuessGame.Services;
 
 public sealed class FileResultsStore : IResultsStore
 {
+    private const int MaxWinnersHistory = 500;
+
     private readonly string _resultsPath;
     private readonly string _lastWinnerPath;
     private readonly string _topicPath;
+    private readonly string _winnersHistoryPath;
     private static readonly JsonSerializerOptions _opts = new() { WriteIndented = true };
 
     public FileResultsStore(string resultsPath)
@@ -15,6 +19,7 @@ public sealed class FileResultsStore : IResultsStore
         var dir = Path.GetDirectoryName(resultsPath) ?? string.Empty;
         _lastWinnerPath = Path.Combine(dir, "lastwinner.txt");
         _topicPath = Path.Combine(dir, "topic.txt");
+        _winnersHistoryPath = Path.Combine(dir, "winnershistory.json");
     }
 
     public IDictionary<string, int> GetResults()
@@ -85,6 +90,44 @@ public sealed class FileResultsStore : IResultsStore
         try
         {
             File.WriteAllText(_topicPath, topic);
+        }
+        catch { /* ignore */ }
+    }
+
+    public IReadOnlyList<WinnerRecord> GetWinnersHistory()
+    {
+        try
+        {
+            if (!File.Exists(_winnersHistoryPath)) return Array.Empty<WinnerRecord>();
+            using var fs = File.OpenRead(_winnersHistoryPath);
+            var list = JsonSerializer.Deserialize<List<WinnerRecord>>(fs);
+            return list ?? (IReadOnlyList<WinnerRecord>)Array.Empty<WinnerRecord>();
+        }
+        catch
+        {
+            return Array.Empty<WinnerRecord>();
+        }
+    }
+
+    public void AddWinnerHistory(string player, DateTimeOffset when)
+    {
+        try
+        {
+            var list = GetWinnersHistory().ToList();
+            list.Insert(0, new WinnerRecord(player, when));
+            if (list.Count > MaxWinnersHistory)
+                list = list.Take(MaxWinnersHistory).ToList();
+            var json = JsonSerializer.Serialize(list, _opts);
+            File.WriteAllText(_winnersHistoryPath, json);
+        }
+        catch { /* ignore */ }
+    }
+
+    public void ClearWinnersHistory()
+    {
+        try
+        {
+            File.WriteAllText(_winnersHistoryPath, "[]");
         }
         catch { /* ignore */ }
     }

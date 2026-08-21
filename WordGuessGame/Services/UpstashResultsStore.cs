@@ -1,12 +1,15 @@
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using WordGuessGame.Models;
 
 namespace WordGuessGame.Services;
 
 // Minimal Upstash REST client-backed store
 public sealed class UpstashResultsStore : IResultsStore, IDisposable
 {
+    private const int MaxWinnersHistory = 500;
+
     private readonly HttpClient _http;
     private readonly string _baseUrl;
     private readonly string _token;
@@ -15,6 +18,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _activePlayersKey;
     private readonly string _playersKey;
     private readonly string _topicKey;
+    private readonly string _winnersHistoryKey;
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -25,6 +29,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         _activePlayersKey = $"{prefix}:active";
         _playersKey = $"{prefix}:players";
         _topicKey = $"{prefix}:topic";
+        _winnersHistoryKey = $"{prefix}:winnershistory";
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
@@ -271,6 +276,67 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         {
             if (string.IsNullOrWhiteSpace(name)) return;
             var url = $"{_baseUrl}/srem/{Uri.EscapeDataString(_playersKey)}/{Uri.EscapeDataString(name)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    // Winners history: stored as a Redis list, most recent win at the head
+    public IReadOnlyList<WinnerRecord> GetWinnersHistory()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/lrange/{Uri.EscapeDataString(_winnersHistoryKey)}/0/-1";
+            var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            if (!resp.IsSuccessStatusCode) return Array.Empty<WinnerRecord>();
+            var json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.Array)
+                return Array.Empty<WinnerRecord>();
+
+            var list = new List<WinnerRecord>();
+            foreach (var item in result.EnumerateArray())
+            {
+                var raw = item.GetString();
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                try
+                {
+                    using var entry = JsonDocument.Parse(raw);
+                    var player = entry.RootElement.GetProperty("player").GetString();
+                    var date = entry.RootElement.GetProperty("date").GetDateTimeOffset();
+                    if (!string.IsNullOrWhiteSpace(player))
+                        list.Add(new WinnerRecord(player, date));
+                }
+                catch { /* skip malformed entry */ }
+            }
+            return list;
+        }
+        catch
+        {
+            return Array.Empty<WinnerRecord>();
+        }
+    }
+
+    public void AddWinnerHistory(string player, DateTimeOffset when)
+    {
+        try
+        {
+            var entry = JsonSerializer.Serialize(new { player, date = when });
+            var urlPush = $"{_baseUrl}/lpush/{Uri.EscapeDataString(_winnersHistoryKey)}/{Uri.EscapeDataString(entry)}";
+            _http.PostAsync(urlPush, null).GetAwaiter().GetResult();
+
+            // Keep the history bounded
+            var urlTrim = $"{_baseUrl}/ltrim/{Uri.EscapeDataString(_winnersHistoryKey)}/0/{MaxWinnersHistory - 1}";
+            _http.PostAsync(urlTrim, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    public void ClearWinnersHistory()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/del/{Uri.EscapeDataString(_winnersHistoryKey)}";
             _http.PostAsync(url, null).GetAwaiter().GetResult();
         }
         catch { /* ignore */ }

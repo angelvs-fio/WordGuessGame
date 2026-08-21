@@ -171,7 +171,37 @@ button {
     list-style: none;
     padding-left: 0;
     display: grid;
-    gap: 8px
+    gap: 8px;
+    max-height: 350px; /* shows ~9 rows before the expand button reveals the rest */
+    overflow: hidden;
+}
+
+.history-list.expanded {
+    max-height: none;
+    overflow: visible;
+}
+
+.winners-history-list {
+    max-height: 195px; /* shows ~5 rows before the expand button reveals the rest */
+}
+
+.winners-history-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-expand-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: #1f2937;
+    color: var(--text);
+    border: 1px solid #263249;
+}
+
+.history-expand-btn:hover {
+    background: #263249;
 }
 
     .history-list li {

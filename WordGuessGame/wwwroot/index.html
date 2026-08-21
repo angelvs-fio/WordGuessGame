@@ -114,6 +114,7 @@
                 <section class="history">
                     <h2>History</h2>
                     <ul id="historyList" class="history-list"></ul>
+                    <button id="historyExpandBtn" type="button" class="history-expand-btn" style="display:none;">Show more</button>
                 </section>
             </div>
 
@@ -163,6 +164,13 @@
                             <button id="deletePlayerBtn" style="flex:1" type="button">Delete player</button>
                         </div>
                     </div>
+                </section>
+
+                <!-- Winners history: visible to everyone, in both game modes -->
+                <section class="winners-history" id="winnersHistorySection" style="margin-top:12px;">
+                    <h2>History of the winners</h2>
+                    <ul id="winnersHistoryList" class="history-list winners-history-list"></ul>
+                    <button id="winnersHistoryExpandBtn" type="button" class="history-expand-btn" style="display:none;">Show more</button>
                 </section>
             </div>
         </div>

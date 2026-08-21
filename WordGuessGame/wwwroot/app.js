@@ -6,7 +6,8 @@ import {
     populateNames, loadAndRenderResultsFromFile, loadTopic,
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
     applyGlobalPainterVisibility, setInputsEnabled, renderTopic,
-    updateStatus, initPaletteAndTools
+    updateStatus, initPaletteAndTools, updateHistoryExpandButton, toggleHistoryExpand,
+    loadWinnersHistory, toggleWinnersHistoryExpand
 } from "./ui.js";
 import * as dom from "./dom.js";
 
@@ -45,6 +46,10 @@ async function managePlayer(action) {
 }
 dom.addPlayerBtn.addEventListener("click", () => managePlayer("add"));
 dom.deletePlayerBtn.addEventListener("click", () => managePlayer("remove"));
+
+// --- History expand/collapse ---
+if (dom.historyExpandBtn) dom.historyExpandBtn.addEventListener("click", toggleHistoryExpand);
+if (dom.winnersHistoryExpandBtn) dom.winnersHistoryExpandBtn.addEventListener("click", toggleWinnersHistoryExpand);
 
 // --- Painter button ---
 dom.painterBtn.addEventListener("click", async () => {
@@ -188,6 +193,7 @@ function setResetStatus(resetMsg) {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
+    updateHistoryExpandButton();
     dom.statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
     setInputsEnabled(true);
     if (ctx) ctx.clearRect(0, 0, dom.paintCanvas.width, dom.paintCanvas.height);
@@ -205,6 +211,7 @@ dom.resetWithResultsBtn.addEventListener("click", async () => {
         await populateNames();
         await loadAndRenderResultsFromFile();
         await loadTopic();
+        await loadWinnersHistory();
     } catch (e) { console.error(e); }
 });
 
@@ -275,6 +282,7 @@ connection.on("GuessAdded", msg => {
     } else {
         dom.historyList.appendChild(li);
     }
+    updateHistoryExpandButton();
 });
 
 connection.on("GameOver", async payload => {
@@ -283,6 +291,7 @@ connection.on("GameOver", async payload => {
     setInputsEnabled(false);
     applyCanvasEnablement();
     await loadAndRenderResultsFromFile();
+    await loadWinnersHistory();
 });
 
 connection.on("GameState", async serverState => { updateStatus(serverState); });
@@ -298,6 +307,7 @@ connection.on("ResetWithResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
+    updateHistoryExpandButton();
     dom.statusText.textContent = "Game reset. Results cleared.";
     state.isGameOver = false;
     state.hasAnswer = false;
@@ -307,6 +317,7 @@ connection.on("ResetWithResults", async () => {
     await populateNames();
     await loadAndRenderResultsFromFile();
     await loadTopic();
+    await loadWinnersHistory();
     applyCanvasEnablement();
 });
 
@@ -318,6 +329,7 @@ connection.on("ResetKeepResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
+    updateHistoryExpandButton();
     dom.statusText.textContent = "Game reset. Results kept.";
     state.isGameOver = false;
     state.hasAnswer = false;
@@ -373,6 +385,7 @@ connection.on("TriviaAnswerSubmitted", msg => {
     } else {
         dom.historyList.appendChild(li);
     }
+    updateHistoryExpandButton();
 });
 
 connection.on("TriviaComplete", async payload => {
@@ -389,6 +402,7 @@ connection.on("TriviaComplete", async payload => {
         ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${formatThousands(winnerAnswer)}`
         : `Answer was: ${formatThousands(payload.correctAnswer)}. No winner determined.`;
     await loadAndRenderResultsFromFile();
+    await loadWinnersHistory();
 });
 
 // Startup
@@ -397,6 +411,7 @@ connection.start()
         await populateNames();
         await loadAndRenderResultsFromFile();
         await loadTopic();
+        await loadWinnersHistory();
         if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch { } }
         applyCanvasEnablement();
     })
