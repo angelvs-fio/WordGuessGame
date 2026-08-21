@@ -183,7 +183,7 @@ button::after {
 
 button:hover:not(:disabled)::after {
     transform: translateX(600%);
-    transition: transform 1.0s ease;
+    transition: transform .7s ease;
 }
 
 button:hover:not(:disabled) {
@@ -401,7 +401,7 @@ h2 {
 
 .segmented-toggle:hover .segment-thumb::after {
     transform: translateX(600%);
-    transition: transform 1.0s ease;
+    transition: transform .7s ease;
 }
 
 .segment {
