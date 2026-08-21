@@ -85,13 +85,44 @@ public class TriviaService(IConfiguration config, IHttpClientFactory httpClientF
         "ocean salinity or pH levels"
     ];
 
+    private static readonly object CategoryLock = new();
+    private static readonly List<string> CategoryDeck = [];
+    private static string? _lastCategory;
+
+    // Shuffled "bag" draw: every category is used exactly once before any repeat,
+    // instead of independent random picks (which repeat far sooner than users expect).
+    private static string GetNextCategory()
+    {
+        lock (CategoryLock)
+        {
+            if (CategoryDeck.Count == 0)
+            {
+                CategoryDeck.AddRange(Categories);
+                for (int i = CategoryDeck.Count - 1; i > 0; i--)
+                {
+                    int j = Random.Shared.Next(i + 1);
+                    (CategoryDeck[i], CategoryDeck[j]) = (CategoryDeck[j], CategoryDeck[i]);
+                }
+
+                // Avoid the freshly shuffled deck starting with the same category the previous deck ended on
+                if (_lastCategory != null && CategoryDeck.Count > 1 && CategoryDeck[0] == _lastCategory)
+                    (CategoryDeck[0], CategoryDeck[1]) = (CategoryDeck[1], CategoryDeck[0]);
+            }
+
+            var category = CategoryDeck[^1];
+            CategoryDeck.RemoveAt(CategoryDeck.Count - 1);
+            _lastCategory = category;
+            return category;
+        }
+    }
+
     public async Task<TriviaGenerateResult> GenerateTriviaAsync()
     {
         var apiKey = config["GROQ_API_KEY"];
         if (string.IsNullOrWhiteSpace(apiKey))
             return new TriviaGenerateResult(null, null, "Groq API key not configured.", 503);
 
-        var category = Categories[Random.Shared.Next(Categories.Length)];
+        var category = GetNextCategory();
 
         var prompt =
             $"Generate one interesting and trivia question specifically about: {category}. " +
@@ -119,7 +150,7 @@ public class TriviaService(IConfiguration config, IHttpClientFactory httpClientF
                 var requestBody = new
                 {
                     model = "openai/gpt-oss-120b",
-                    temperature = 0.0,
+                    temperature = 0.5,
                     response_format = new { type = "json_object" },
                     messages = new[]
                     {
