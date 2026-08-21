@@ -109,10 +109,11 @@ dom.setTopicBtn.addEventListener("click", async () => {
 });
 
 // --- Game mode ---
-dom.gameModeBtn.addEventListener("click", async () => {
-    const newMode = state.triviaMode ? "drawing" : "trivia";
-    try { await connection.invoke("SwitchGameMode", newMode); } catch (e) { console.error(e); }
-});
+async function switchGameMode(mode) {
+    if ((mode === "trivia") === state.triviaMode) return;
+    try { await connection.invoke("SwitchGameMode", mode); } catch (e) { console.error(e); }
+}
+dom.gameModeToggle.addEventListener("click", () => switchGameMode(state.triviaMode ? "drawing" : "trivia"));
 
 // --- Trivia: AI question generator ---
 dom.generateTriviaBtn.addEventListener("click", async () => {
@@ -140,19 +141,29 @@ dom.generateTriviaBtn.addEventListener("click", async () => {
 });
 
 // --- Trivia: set question ---
+function setFieldInvalid(input, invalid) {
+    if (input) input.classList.toggle("input-error", !!invalid);
+}
+if (dom.triviaQuestionInput) dom.triviaQuestionInput.addEventListener("input", () => setFieldInvalid(dom.triviaQuestionInput, false));
+if (dom.triviaAnswerInput) dom.triviaAnswerInput.addEventListener("input", () => setFieldInvalid(dom.triviaAnswerInput, false));
+
 dom.setTriviaQuestionBtn.addEventListener("click", async () => {
     const q = (dom.triviaQuestionInput.value || "").trim();
     const a = (dom.triviaAnswerInput.value || "").trim().replace(/\s+/g, "");
     if (q.length <= 5) {
+        setFieldInvalid(dom.triviaQuestionInput, true);
         dom.statusText.textContent = "Question must be longer than 5 characters.";
         dom.triviaQuestionInput.focus();
         return;
     }
+    setFieldInvalid(dom.triviaQuestionInput, false);
     if (!TRIVIA_NUMBER_RE.test(a)) {
+        setFieldInvalid(dom.triviaAnswerInput, true);
         dom.statusText.textContent = "Answer must be a valid real number. Use '.' for decimals.";
         dom.triviaAnswerInput.focus();
         return;
     }
+    setFieldInvalid(dom.triviaAnswerInput, false);
     try {
         await connection.invoke("SetTriviaQuestion", getUser(), q, a);
     } catch (e) { console.error(e); }

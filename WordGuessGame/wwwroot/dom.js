@@ -41,7 +41,9 @@ export const paintSize = document.getElementById("paintSize");
 export const paintClearBtn = document.getElementById("paintClearBtn");
 export const colorPalette = document.getElementById("colorPalette");
 
-export const gameModeBtn = document.getElementById("gameModeBtn");
+export const gameModeToggle = document.getElementById("gameModeToggle");
+export const gameModeDrawingBtn = document.getElementById("gameModeDrawingBtn");
+export const gameModeTriviaBtn = document.getElementById("gameModeTriviaBtn");
 export const triviaQuestionSection = document.getElementById("triviaQuestionSection");
 export const triviaQuestionInput = document.getElementById("triviaQuestionInput");
 export const triviaAnswerInput = document.getElementById("triviaAnswerInput");

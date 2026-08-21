@@ -18,7 +18,11 @@
                     <!-- Painter toggle button and user name on same row -->
                     <div id="userNameRow" class="inline" style="margin-top:8px; align-items:center;">
                         <button id="painterBtn" class="toggle-btn" aria-pressed="false" type="button">Game host</button>
-                        <button id="gameModeBtn" class="toggle-btn" aria-pressed="false" type="button" style="display:none;">Trivia Quiz</button>
+                        <div id="gameModeToggle" class="segmented-toggle" role="group" aria-label="Game mode" style="display:none;">
+                            <div id="gameModeThumb" class="segment-thumb"></div>
+                            <button id="gameModeDrawingBtn" class="segment active" data-mode="drawing" type="button">Drawing</button>
+                            <button id="gameModeTriviaBtn" class="segment" data-mode="trivia" type="button">Trivia</button>
+                        </div>
                         <select id="userName" style="flex:1;">
                             <option value="" disabled selected>Select your name</option>
                         </select>

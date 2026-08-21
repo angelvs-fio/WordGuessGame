@@ -111,10 +111,9 @@ export function applyCanvasEnablement() {
 }
 
 export function applyGameMode() {
-    if (!dom.gameModeBtn) return;
-    dom.gameModeBtn.textContent = state.triviaMode ? "Drawing Game" : "Trivia Quiz";
-    dom.gameModeBtn.classList.toggle("active", state.triviaMode);
-    dom.gameModeBtn.setAttribute("aria-pressed", String(state.triviaMode));
+    if (dom.gameModeToggle) dom.gameModeToggle.classList.toggle("trivia", state.triviaMode);
+    if (dom.gameModeDrawingBtn) dom.gameModeDrawingBtn.classList.toggle("active", !state.triviaMode);
+    if (dom.gameModeTriviaBtn) dom.gameModeTriviaBtn.classList.toggle("active", state.triviaMode);
     const newTitle = state.triviaMode ? "Trivia 2" : "Skribbl 2";
     document.title = newTitle;
     const h1 = document.querySelector("header h1");
@@ -147,7 +146,7 @@ export function updatePainterUI() {
     dom.painterBtn.classList.toggle("active", state.isPainter);
     dom.painterBtn.setAttribute("aria-pressed", String(state.isPainter));
     dom.painterBtn.textContent = state.isPainter ? "Game host (on)" : "Game host";
-    if (dom.gameModeBtn) dom.gameModeBtn.style.display = state.isPainter ? "inline-flex" : "none";
+    if (dom.gameModeToggle) dom.gameModeToggle.style.display = state.isPainter ? "inline-flex" : "none";
     dom.managePlayersSection.style.display = state.isPainter ? "block" : "none";
     dom.setTopicBtn.style.display = state.isPainter ? "inline-block" : "none";
     dom.topicInput.style.display = state.isPainter ? "block" : "none";
