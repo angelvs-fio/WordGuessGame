@@ -155,6 +155,14 @@ button {
         cursor: not-allowed
     }
 
+.btn-flash-success {
+    color: #000000 !important
+}
+
+#setAnswerBtn, #guessBtn {
+    min-width: 130px;
+}
+
 .status {
     font-weight: 600;
     color: #ffffff

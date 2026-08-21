@@ -7,7 +7,7 @@ import {
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
     applyGlobalPainterVisibility, setInputsEnabled, renderTopic,
     updateStatus, initPaletteAndTools, updateHistoryExpandButton, toggleHistoryExpand,
-    loadWinnersHistory, toggleWinnersHistoryExpand
+    loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone
 } from "./ui.js";
 import * as dom from "./dom.js";
 
@@ -270,6 +270,7 @@ connection.on("AnswerSet", async payload => {
     state.hasAnswer = true;
     if (payload.wordCount > 0) updateWordCount(payload.wordCount);
     applyCanvasEnablement();
+    if (state.isPainter) flashButtonDone(dom.setAnswerBtn);
     await loadAndRenderResultsFromFile();
 });
 
@@ -372,6 +373,7 @@ connection.on("TriviaQuestionSet", payload => {
     if (dom.triviaAnswerReveal) { dom.triviaAnswerReveal.style.display = "none"; dom.triviaAnswerReveal.textContent = ""; }
     if (dom.triviaGuessInput && !state.isPainter) dom.triviaGuessInput.value = "";
     applyTriviaGuessState();
+    if (state.isPainter) flashButtonDone(dom.setTriviaQuestionBtn);
     dom.statusText.textContent = state.isPainter
         ? "Question set. Waiting for players to answer..."
         : (hasSelectedName() ? "Question ready. Enter your answer!" : "Question ready. Select your name to answer!");

@@ -80,6 +80,19 @@ export function getUser() {
     return state.cachedUser;
 }
 
+export function flashButtonDone(btn, duration = 1000) {
+    if (!btn) return;
+    if (!btn.dataset.originalText) btn.dataset.originalText = btn.textContent;
+    if (btn._flashTimeout) clearTimeout(btn._flashTimeout);
+    btn.textContent = "Done!";
+    btn.classList.add("btn-flash-success");
+    btn._flashTimeout = setTimeout(() => {
+        btn.textContent = btn.dataset.originalText;
+        btn.classList.remove("btn-flash-success");
+        btn._flashTimeout = null;
+    }, duration);
+}
+
 export function updateWordCount(count) {
     if (!dom.wordCountDisplay || !dom.wordCountValue) return;
     dom.wordCountValue.textContent = count > 0 ? (count === 1 ? "1 word" : `${count} words`) : "0";
