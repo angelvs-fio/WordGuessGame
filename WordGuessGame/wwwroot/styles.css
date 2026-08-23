@@ -322,6 +322,41 @@ button:active:not(:disabled) {
     color: var(--muted)
 }
 
+/* Soft, calm blinking lights on the winner's row right after a round ends */
+@keyframes winner-flash {
+    0%     { background-color: rgba(250, 204, 21, .7); } /* gold */
+    16.6%  { background-color: rgba(248, 113, 113, .65); } /* coral */
+    33.3%  { background-color: rgba(196, 132, 252, .65); } /* purple */
+    50%    { background-color: rgba(96, 165, 250, .65); }  /* blue */
+    66.6%  { background-color: rgba(103, 232, 249, .65); } /* cyan */
+    83.3%  { background-color: rgba(134, 239, 172, .65); } /* green */
+    100%   { background-color: transparent; }
+}
+
+.winner-flash {
+    animation: winner-flash 2s ease-in-out;
+}
+
+/* White text with a gentle dark outline stays readable against every flash color */
+@keyframes winner-flash-text {
+    0%, 85% { color: #ffffff; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+    100% { color: var(--text); text-shadow: none; }
+}
+
+@keyframes winner-flash-text-name {
+    0%, 85% { color: #ffffff; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
+    100% { color: var(--accent); text-shadow: none; }
+}
+
+.winner-flash td {
+    font-weight: 700;
+    animation: winner-flash-text 2s ease-in-out;
+}
+
+.winner-flash .active-player {
+    animation: winner-flash-text-name 2s ease-in-out;
+}
+
 h2 {
     padding-top: 4px;
     padding-bottom: 4px;

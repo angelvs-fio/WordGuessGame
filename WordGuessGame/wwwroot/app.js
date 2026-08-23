@@ -302,7 +302,7 @@ connection.on("GameOver", async payload => {
     dom.statusText.textContent = `Congratulations! The winner is ${payload.winner}!`;
     setInputsEnabled(false);
     applyCanvasEnablement();
-    await loadAndRenderResultsFromFile();
+    await loadAndRenderResultsFromFile(true);
     await loadWinnersHistory();
 });
 
@@ -414,7 +414,7 @@ connection.on("TriviaComplete", async payload => {
     dom.statusText.textContent = payload.winner
         ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${formatThousands(winnerAnswer)}`
         : `Answer was: ${formatThousands(payload.correctAnswer)}. No winner determined.`;
-    await loadAndRenderResultsFromFile();
+    await loadAndRenderResultsFromFile(!!payload.winner);
     await loadWinnersHistory();
 });
 

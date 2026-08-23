@@ -215,12 +215,12 @@ export async function populateNames() {
     }
 }
 
-export async function loadAndRenderResultsFromFile() {
+export async function loadAndRenderResultsFromFile(animateWinner = false) {
     try {
         const res = await fetch("results");
         if (!res.ok) throw new Error(`results ${res.status}`);
         const items = await res.json();
-        renderResults(items);
+        renderResults(items, animateWinner);
     } catch (e) {
         console.error("Failed to load results:", e);
         dom.statusText.textContent = "Failed to load results.";
@@ -249,7 +249,7 @@ export function renderTopic(topic) {
     dom.topicValue.style.textAlign = "center";
 }
 
-export function renderResults(items) {
+export function renderResults(items, animateWinner = false) {
     dom.resultsBody.innerHTML = "";
     if (!Array.isArray(items) || items.length === 0) return;
     const activeSet = new Set((state.activePlayers || []).map(a => a.toLowerCase()));
@@ -258,6 +258,7 @@ export function renderResults(items) {
         const isActive = activeSet.has(String(x.name).toLowerCase());
         const nameCell = isActive ? `<span class="active-player">${escapeHtml(x.name)}</span>${crown}` : `${escapeHtml(x.name)}${crown}`;
         const tr = document.createElement("tr");
+        if (animateWinner && x.isLastWinner) tr.classList.add("winner-flash");
         tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
         dom.resultsBody.appendChild(tr);
     });
