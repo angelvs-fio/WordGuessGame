@@ -2,7 +2,6 @@ import { state } from "./state.js";
 import * as dom from "./dom.js";
 import { escapeHtml, formatThousands } from "./utils.js";
 
-const HISTORY_VISIBLE_COUNT = 9;
 const WINNERS_HISTORY_VISIBLE_COUNT = 5;
 
 function updateExpandButton(listEl, btnEl, visibleCount) {
@@ -16,16 +15,6 @@ function updateExpandButton(listEl, btnEl, visibleCount) {
     btnEl.style.display = "block";
     const expanded = listEl.classList.contains("expanded");
     btnEl.textContent = expanded ? "Show less" : `Show more (${total - visibleCount} more)`;
-}
-
-export function updateHistoryExpandButton() {
-    updateExpandButton(dom.historyList, dom.historyExpandBtn, HISTORY_VISIBLE_COUNT);
-}
-
-export function toggleHistoryExpand() {
-    if (!dom.historyList) return;
-    dom.historyList.classList.toggle("expanded");
-    updateHistoryExpandButton();
 }
 
 export function updateWinnersHistoryExpandButton() {
@@ -281,7 +270,6 @@ export function updateStatus(serverState) {
             li.innerHTML = `<span class="user">${escapeHtml(item.user)}</span>: <span class="guess">${escapeHtml(item.answer)}</span>`;
             dom.historyList.appendChild(li);
         });
-        updateHistoryExpandButton();
         const me = getUser();
         if (me && serverState.triviaAnswers.some(a => a.user === me)) {
             state.myTriviaAnswerSubmitted = true;

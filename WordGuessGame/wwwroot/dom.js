@@ -15,7 +15,6 @@ export const resetKeepResultsBtn = document.getElementById("resetKeepResultsBtn"
 
 export const statusText = document.getElementById("statusText");
 export const historyList = document.getElementById("historyList");
-export const historyExpandBtn = document.getElementById("historyExpandBtn");
 export const resultsBody = document.getElementById("resultsBody");
 
 export const topicLabel = document.getElementById("topicLabel");

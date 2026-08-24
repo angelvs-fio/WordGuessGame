@@ -285,8 +285,6 @@ button:active:not(:disabled) {
     padding-left: 0;
     display: grid;
     gap: 8px;
-    max-height: 350px; /* shows ~9 rows before the expand button reveals the rest */
-    overflow: hidden;
 }
 
 .history-list.expanded {
@@ -296,6 +294,7 @@ button:active:not(:disabled) {
 
 .winners-history-list {
     max-height: 195px; /* shows ~5 rows before the expand button reveals the rest */
+    overflow: hidden;
 }
 
 .winners-history-list li {
@@ -346,7 +345,8 @@ button:active:not(:disabled) {
 }
 
 #resultsTable th {
-    color: var(--muted)
+    color: var(--muted);
+    border-bottom: 2px solid var(--accent2)
 }
 
 /* Soft, calm blinking lights on the winner's row right after a round ends */

@@ -6,7 +6,7 @@ import {
     populateNames, loadAndRenderResultsFromFile, loadTopic,
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
     applyGlobalPainterVisibility, setInputsEnabled, renderTopic,
-    updateStatus, initPaletteAndTools, updateHistoryExpandButton, toggleHistoryExpand,
+    updateStatus, initPaletteAndTools,
     loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone
 } from "./ui.js";
 import * as dom from "./dom.js";
@@ -48,7 +48,6 @@ dom.addPlayerBtn.addEventListener("click", () => managePlayer("add"));
 dom.deletePlayerBtn.addEventListener("click", () => managePlayer("remove"));
 
 // --- History expand/collapse ---
-if (dom.historyExpandBtn) dom.historyExpandBtn.addEventListener("click", toggleHistoryExpand);
 if (dom.winnersHistoryExpandBtn) dom.winnersHistoryExpandBtn.addEventListener("click", toggleWinnersHistoryExpand);
 
 // --- Painter button ---
@@ -204,7 +203,6 @@ function setResetStatus(resetMsg) {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    updateHistoryExpandButton();
     dom.statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
     setInputsEnabled(true);
     if (ctx) ctx.clearRect(0, 0, dom.paintCanvas.width, dom.paintCanvas.height);
@@ -294,7 +292,6 @@ connection.on("GuessAdded", msg => {
     } else {
         dom.historyList.appendChild(li);
     }
-    updateHistoryExpandButton();
 });
 
 connection.on("GameOver", async payload => {
@@ -319,7 +316,6 @@ connection.on("ResetWithResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    updateHistoryExpandButton();
     dom.statusText.textContent = "Game reset. Results cleared.";
     state.isGameOver = false;
     state.hasAnswer = false;
@@ -341,7 +337,6 @@ connection.on("ResetKeepResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    updateHistoryExpandButton();
     dom.statusText.textContent = "Game reset. Results kept.";
     state.isGameOver = false;
     state.hasAnswer = false;
@@ -398,7 +393,6 @@ connection.on("TriviaAnswerSubmitted", msg => {
     } else {
         dom.historyList.appendChild(li);
     }
-    updateHistoryExpandButton();
 });
 
 connection.on("TriviaComplete", async payload => {
