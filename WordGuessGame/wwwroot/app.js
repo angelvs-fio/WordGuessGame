@@ -21,6 +21,26 @@ const connection = new signalR.HubConnectionBuilder()
     })
     .build();
 
+// --- Reconnect handling ---
+// A dropped/re-established connection can leave the server not knowing who the
+// painter (or guesser) was, e.g. after a cold restart. Re-announce our own role
+// as soon as we're back online instead of waiting for the user to click again.
+connection.onreconnecting(() => {
+    dom.statusText.textContent = "Reconnecting...";
+});
+
+connection.onreconnected(async () => {
+    try {
+        if (state.isPainter) {
+            await connection.invoke("SelectPainter", getUser());
+        } else if (hasSelectedName()) {
+            await connection.invoke("SetUserName", getUser());
+        }
+    } catch (e) { console.error(e); }
+    setInputsEnabled(!state.isGameOver);
+    applyCanvasEnablement();
+});
+
 // Initial DOM state
 dom.resetSection.style.display = "none";
 
@@ -73,6 +93,28 @@ dom.painterBtn.addEventListener("click", async () => {
 
 // --- Username select ---
 dom.userNameInput.addEventListener("change", async () => {
+    const selectedName = (dom.userNameInput.value || "").trim();
+    // The last round's winner becomes the next host automatically: deselect them from the
+    // dropdown so they are never registered as an active player awaiting their own answer.
+    if (selectedName && state.lastWinner && selectedName.toLowerCase() === state.lastWinner.toLowerCase()) {
+        state.cachedUser = selectedName;
+        dom.userNameInput.value = "";
+        state.isPainter = true;
+        updatePainterUI();
+        applyNameRowVisibility();
+        try {
+            await connection.invoke("SelectPainter", selectedName);
+            await connection.invoke("SetUserName", "");
+        } catch (e) { console.error(e); }
+        if (!state.hasAnswer && !state.isGameOver) {
+            dom.statusText.textContent = "Waiting for answer...";
+        }
+        setInputsEnabled(!state.isGameOver);
+        await loadAndRenderResultsFromFile();
+        await loadTopic();
+        applyCanvasEnablement();
+        return;
+    }
     setInputsEnabled(!state.isGameOver);
     if (hasSelectedName()) {
         try { await connection.invoke("SetUserName", getUser()); } catch (e) { console.error(e); }
@@ -238,11 +280,11 @@ dom.resetKeepResultsBtn.addEventListener("click", async () => {
 connection.on("PainterSelected", payload => {
     const announced = (payload && payload.painter) ? payload.painter : "";
     state.currentPainter = announced;
-    if (announced && hasSelectedName() && announced === getUser()) {
+    if (announced && announced === getUser()) {
         state.isPainter = true;
         updatePainterUI();
         applyNameRowVisibility();
-    } else if (!announced || (hasSelectedName() && announced !== getUser())) {
+    } else if (announced !== getUser()) {
         state.isPainter = false;
         updatePainterUI();
         applyNameRowVisibility();

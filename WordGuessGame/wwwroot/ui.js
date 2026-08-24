@@ -134,7 +134,7 @@ export function applyTriviaGuessState() {
 export function updatePainterUI() {
     dom.painterBtn.classList.toggle("active", state.isPainter);
     dom.painterBtn.setAttribute("aria-pressed", String(state.isPainter));
-    dom.painterBtn.textContent = state.isPainter ? "Game host (on)" : "Game host";
+    dom.painterBtn.textContent = state.isPainter ? "Hosting..." : "Become a host";
     if (dom.gameModeToggle) dom.gameModeToggle.style.display = state.isPainter ? "inline-flex" : "none";
     dom.managePlayersSection.style.display = state.isPainter ? "block" : "none";
     dom.setTopicBtn.style.display = state.isPainter ? "inline-block" : "none";
@@ -256,6 +256,7 @@ export function renderResults(items, animateWinner = false) {
 export function updateStatus(serverState) {
     state.isGameOver = !!serverState.isGameOver;
     state.hasAnswer = !!serverState.hasAnswer;
+    state.lastWinner = serverState.lastWinner ? String(serverState.lastWinner).trim() : "";
     if (serverState.gameMode !== undefined) {
         state.triviaMode = serverState.gameMode === "trivia";
     }

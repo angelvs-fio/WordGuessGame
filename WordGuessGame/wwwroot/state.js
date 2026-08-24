@@ -3,6 +3,7 @@ export const state = {
     hasAnswer: false,
     isPainter: false,
     currentPainter: "",
+    lastWinner: "",
     cachedUser: "",
     drawing: false,
     lastX: 0,
