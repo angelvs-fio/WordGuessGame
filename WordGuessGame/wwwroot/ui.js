@@ -165,7 +165,7 @@ export function setInputsEnabled(enabled) {
     }
     applyNameRowVisibility();
     dom.answerInput.disabled = !enabled || state.isGameOver || !state.isPainter;
-    dom.setAnswerBtn.disabled = !enabled || state.isGameOver || !state.isPainter;
+    dom.setAnswerBtn.disabled = !enabled || state.isGameOver || !state.isPainter || state.hasAnswer;
     const canGuess = enabled && !state.isGameOver && !state.isPainter && nameSelected;
     dom.guessInput.disabled = !canGuess;
     dom.guessBtn.disabled = !canGuess;
