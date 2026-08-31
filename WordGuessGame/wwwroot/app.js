@@ -7,7 +7,7 @@ import {
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
     applyGlobalPainterVisibility, setInputsEnabled, renderTopic,
     updateStatus, initPaletteAndTools,
-    loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone
+    loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone, setStatus
 } from "./ui.js";
 import * as dom from "./dom.js";
 
@@ -26,7 +26,7 @@ const connection = new signalR.HubConnectionBuilder()
 // painter (or guesser) was, e.g. after a cold restart. Re-announce our own role
 // as soon as we're back online instead of waiting for the user to click again.
 connection.onreconnecting(() => {
-    dom.statusText.textContent = "Reconnecting...";
+    setStatus("Reconnecting...");
 });
 
 connection.onreconnected(async () => {
@@ -85,7 +85,7 @@ dom.painterBtn.addEventListener("click", async () => {
         }
     } catch (e) { console.error(e); }
     if (state.isPainter && !state.hasAnswer && !state.isGameOver) {
-        dom.statusText.textContent = "Waiting for answer...";
+        setStatus("Waiting for answer...");
     }
     setInputsEnabled(!state.isGameOver);
     applyCanvasEnablement();
@@ -107,7 +107,7 @@ dom.userNameInput.addEventListener("change", async () => {
             await connection.invoke("SetUserName", "");
         } catch (e) { console.error(e); }
         if (!state.hasAnswer && !state.isGameOver) {
-            dom.statusText.textContent = "Waiting for answer...";
+            setStatus("Waiting for answer...");
         }
         setInputsEnabled(!state.isGameOver);
         await loadAndRenderResultsFromFile();
@@ -166,7 +166,7 @@ dom.generateTriviaBtn.addEventListener("click", async () => {
         const res = await fetch("/trivia/generate");
         const data = await res.json();
         if (!res.ok) {
-            dom.statusText.textContent = data.error || `AI generation failed (${res.status}).`;
+            setStatus(data.error || `AI generation failed (${res.status}).`, "warning");
             return;
         }
         dom.triviaQuestionInput.value = data.question;
@@ -174,7 +174,7 @@ dom.generateTriviaBtn.addEventListener("click", async () => {
         dom.triviaAnswerInput.dispatchEvent(new Event("input"));
     } catch (e) {
         console.error("AI generation error:", e);
-        dom.statusText.textContent = "AI generation failed. Check your connection.";
+        setStatus("AI generation failed. Check your connection.", "warning");
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -193,14 +193,14 @@ dom.setTriviaQuestionBtn.addEventListener("click", async () => {
     const a = (dom.triviaAnswerInput.value || "").trim().replace(/\s+/g, "");
     if (q.length <= 5) {
         setFieldInvalid(dom.triviaQuestionInput, true);
-        dom.statusText.textContent = "Question must be longer than 5 characters.";
+        setStatus("Question must be longer than 5 characters.", "warning");
         dom.triviaQuestionInput.focus();
         return;
     }
     setFieldInvalid(dom.triviaQuestionInput, false);
     if (!TRIVIA_NUMBER_RE.test(a)) {
         setFieldInvalid(dom.triviaAnswerInput, true);
-        dom.statusText.textContent = "Answer must be a valid real number. Use '.' for decimals.";
+        setStatus("Answer must be a valid real number. Use '.' for decimals.", "warning");
         dom.triviaAnswerInput.focus();
         return;
     }
@@ -216,7 +216,7 @@ dom.triviaGuessBtn.addEventListener("click", async () => {
     const ans = (dom.triviaGuessInput.value || "").trim().replace(/\s+/g, "");
     if (!ans) return;
     if (!TRIVIA_NUMBER_RE.test(ans)) {
-        dom.statusText.textContent = "Please enter a valid real number.";
+        setStatus("Please enter a valid real number.", "warning");
         dom.triviaGuessInput.focus();
         return;
     }
@@ -245,7 +245,7 @@ function setResetStatus(resetMsg) {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    dom.statusText.textContent = resetMsg || "Game reset. Waiting for answer...";
+    setStatus(resetMsg || "Game reset. Waiting for answer...");
     setInputsEnabled(true);
     if (ctx) ctx.clearRect(0, 0, dom.paintCanvas.width, dom.paintCanvas.height);
     state.baseImage = null;
@@ -292,12 +292,12 @@ connection.on("PainterSelected", payload => {
     const someoneIsPainter = !!state.currentPainter;
     const iAmGlobalPainter = someoneIsPainter && state.currentPainter === getUser();
     if (!state.hasAnswer && !state.isGameOver && iAmGlobalPainter) {
-        dom.statusText.textContent = "Waiting for answer...";
+        setStatus("Waiting for answer...");
     } else if (state.hasAnswer && !state.isGameOver) {
         const nameSelected = hasSelectedName();
-        dom.statusText.textContent = iAmGlobalPainter
+        setStatus(iAmGlobalPainter
             ? "Answer set. You can start drawing!"
-            : (nameSelected ? "Answer set. Start guessing!" : "Answer set. Please select your name and start guessing!");
+            : (nameSelected ? "Answer set. Start guessing!" : "Answer set. Please select your name and start guessing!"));
     }
     applyGlobalPainterVisibility();
     applyCanvasEnablement();
@@ -309,15 +309,15 @@ connection.on("ActivePlayers", async players => {
     await loadAndRenderResultsFromFile();
 });
 
-connection.on("Error", msg => { dom.statusText.textContent = `Error: ${msg}`; });
+connection.on("Error", msg => { setStatus(`Error: ${msg}`, "warning"); });
 
 connection.on("AnswerSet", async payload => {
     const someoneIsPainter = !!state.currentPainter;
     const iAmGlobalPainter = someoneIsPainter && state.currentPainter === getUser();
     const nameSelected = hasSelectedName();
-    dom.statusText.textContent = iAmGlobalPainter
+    setStatus(iAmGlobalPainter
         ? "Answer set. You can start drawing!"
-        : (nameSelected ? `Answer set by ${payload.by}. Start guessing!` : `Answer set by ${payload.by}. Please select your name and start guessing!`);
+        : (nameSelected ? `Answer set by ${payload.by}. Start guessing!` : `Answer set by ${payload.by}. Please select your name and start guessing!`));
     state.hasAnswer = true;
     if (payload.wordCount > 0) updateWordCount(payload.wordCount);
     applyCanvasEnablement();
@@ -338,7 +338,7 @@ connection.on("GuessAdded", msg => {
 
 connection.on("GameOver", async payload => {
     state.isGameOver = true;
-    dom.statusText.textContent = `Congratulations! The winner is ${payload.winner}!`;
+    setStatus(`Congratulations! The winner is ${payload.winner}!`, "success");
     setInputsEnabled(false);
     applyCanvasEnablement();
     await loadAndRenderResultsFromFile(true);
@@ -358,7 +358,7 @@ connection.on("ResetWithResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    dom.statusText.textContent = "Game reset. Results cleared.";
+    setStatus("Game reset. Results cleared.");
     state.isGameOver = false;
     state.hasAnswer = false;
     updateWordCount(0);
@@ -379,7 +379,7 @@ connection.on("ResetKeepResults", async () => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
-    dom.statusText.textContent = "Game reset. Results kept.";
+    setStatus("Game reset. Results kept.");
     state.isGameOver = false;
     state.hasAnswer = false;
     updateWordCount(0);
@@ -408,9 +408,9 @@ connection.on("GameModeChanged", payload => {
     if (dom.triviaGuessInput) { dom.triviaGuessInput.value = ""; dom.triviaGuessInput.disabled = true; }
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     applyGameMode();
-    dom.statusText.textContent = state.triviaMode
+    setStatus(state.triviaMode
         ? (state.isPainter ? "Trivia mode. Set a question!" : "Trivia mode. Waiting for question...")
-        : "Drawing mode active.";
+        : "Drawing mode active.");
     if (!state.triviaMode) setInputsEnabled(!state.isGameOver);
 });
 
@@ -422,9 +422,9 @@ connection.on("TriviaQuestionSet", payload => {
     if (dom.triviaGuessInput && !state.isPainter) dom.triviaGuessInput.value = "";
     applyTriviaGuessState();
     if (state.isPainter) flashButtonDone(dom.setTriviaQuestionBtn);
-    dom.statusText.textContent = state.isPainter
+    setStatus(state.isPainter
         ? "Question set. Waiting for players to answer..."
-        : (hasSelectedName() ? "Question ready. Enter your answer!" : "Question ready. Select your name to answer!");
+        : (hasSelectedName() ? "Question ready. Enter your answer!" : "Question ready. Select your name to answer!"));
 });
 
 connection.on("TriviaAnswerSubmitted", msg => {
@@ -447,9 +447,10 @@ connection.on("TriviaComplete", async payload => {
     const winnerAnswer = payload.winner && Array.isArray(payload.answers)
         ? (payload.answers.find(a => a.user === payload.winner)?.answer ?? "")
         : "";
-    dom.statusText.textContent = payload.winner
-        ? `\uD83C\uDFC6 Winner: ${escapeHtml(payload.winner)}! His/Her answer was: ${formatThousands(winnerAnswer)}`
-        : `Answer was: ${formatThousands(payload.correctAnswer)}. No winner determined.`;
+    setStatus(payload.winner
+        ? `Winner: ${escapeHtml(payload.winner)}\nHis/Her answer was: ${formatThousands(winnerAnswer)}`
+        : `Answer was: ${formatThousands(payload.correctAnswer)}. No winner determined.`,
+        payload.winner ? "success" : null);
     await loadAndRenderResultsFromFile(!!payload.winner);
     await loadWinnersHistory();
 });
@@ -464,4 +465,4 @@ connection.start()
         if (hasSelectedName()) { try { await connection.invoke("SetUserName", getUser()); } catch { } }
         applyCanvasEnablement();
     })
-    .catch(err => { console.error("Connection failed:", err); dom.statusText.textContent = "Disconnected."; });
+    .catch(err => { console.error("Connection failed:", err); setStatus("Disconnected.", "warning"); });

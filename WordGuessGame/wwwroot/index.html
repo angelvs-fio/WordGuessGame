@@ -125,7 +125,7 @@
 
             <!-- Right column -->
             <div class="right">
-                <section class="status">
+                <section class="status" id="statusSection">
                     <div id="statusText">Waiting for answer...</div>
                 </section>
 
@@ -152,6 +152,10 @@
 
                 <section class="results">
                     <h2>Results</h2>
+                    <div id="resetHint" class="hint-banner" style="display:none;">
+                        <span class="hint-icon">!</span>
+                        <span id="resetHintText"></span>
+                    </div>
                     <table id="resultsTable">
                         <thead>
                             <tr><th>Name</th><th>Points</th></tr>

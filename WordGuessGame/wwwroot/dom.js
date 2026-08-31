@@ -13,9 +13,12 @@ export const resetSection = document.getElementById("resetSection");
 export const resetWithResultsBtn = document.getElementById("resetWithResultsBtn");
 export const resetKeepResultsBtn = document.getElementById("resetKeepResultsBtn");
 
+export const statusSection = document.getElementById("statusSection");
 export const statusText = document.getElementById("statusText");
 export const historyList = document.getElementById("historyList");
 export const resultsBody = document.getElementById("resultsBody");
+export const resetHint = document.getElementById("resetHint");
+export const resetHintText = document.getElementById("resetHintText");
 
 export const topicLabel = document.getElementById("topicLabel");
 export const topicValue = document.getElementById("topicValue");

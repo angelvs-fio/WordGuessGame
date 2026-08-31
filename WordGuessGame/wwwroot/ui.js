@@ -82,6 +82,16 @@ export function flashButtonDone(btn, duration = 1000) {
     }, duration);
 }
 
+// Colors the status line green (with a check icon) for wins/success, or yellow
+// (with a "!" icon, matching the results-hint banner) for warnings/errors.
+export function setStatus(text, kind = null) {
+    dom.statusText.textContent = text;
+    if (dom.statusSection) {
+        dom.statusSection.classList.remove("success", "warning");
+        if (kind) dom.statusSection.classList.add(kind);
+    }
+}
+
 export function updateWordCount(count) {
     if (!dom.wordCountDisplay || !dom.wordCountValue) return;
     dom.wordCountValue.textContent = count > 0 ? (count === 1 ? "1 word" : `${count} words`) : "0";
@@ -171,7 +181,7 @@ export function setInputsEnabled(enabled) {
     dom.guessBtn.disabled = !canGuess;
     dom.userNameInput.disabled = !enabled || state.isGameOver;
     if (!state.isPainter && !nameSelected && !state.isGameOver && enabled) {
-        dom.statusText.textContent = "Select your name to start guessing.";
+        setStatus("Select your name to start guessing.");
     }
     dom.painterBtn.style.display = "inline-flex";
     updatePainterUI();
@@ -200,7 +210,7 @@ export async function populateNames() {
         });
     } catch (e) {
         console.error("Failed to load players:", e);
-        dom.statusText.textContent = "Failed to load players.";
+        setStatus("Failed to load players.", "warning");
     }
 }
 
@@ -212,7 +222,7 @@ export async function loadAndRenderResultsFromFile(animateWinner = false) {
         renderResults(items, animateWinner);
     } catch (e) {
         console.error("Failed to load results:", e);
-        dom.statusText.textContent = "Failed to load results.";
+        setStatus("Failed to load results.", "warning");
     }
 }
 
@@ -240,6 +250,7 @@ export function renderTopic(topic) {
 
 export function renderResults(items, animateWinner = false) {
     dom.resultsBody.innerHTML = "";
+    updateResetHint(items);
     if (!Array.isArray(items) || items.length === 0) return;
     const activeSet = new Set((state.activePlayers || []).map(a => a.toLowerCase()));
     items.forEach(x => {
@@ -251,6 +262,20 @@ export function renderResults(items, animateWinner = false) {
         tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
         dom.resultsBody.appendChild(tr);
     });
+}
+
+// Nudges players to start a fresh round (Reset Game) once someone has racked up
+// a lot of points and it's still early in the week, so scores don't snowball all week.
+function updateResetHint(items) {
+    if (!dom.resetHint || !dom.resetHintText) return;
+    const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, ...
+    const isStartOfNewSprint = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+    const maxPoints = Array.isArray(items) ? items.reduce((m, x) => Math.max(m, Number(x.points) || 0), 0) : 0;
+    const shouldShow = isStartOfNewSprint && maxPoints >= 8;
+    dom.resetHint.style.display = shouldShow ? "flex" : "none";
+    if (shouldShow) {
+        dom.resetHintText.textContent = "Please consider whether the result should be reset.";
+    }
 }
 
 export function updateStatus(serverState) {
@@ -281,17 +306,17 @@ export function updateStatus(serverState) {
     const nameSelected = hasSelectedName();
     if (!state.triviaMode) {
         if (!serverState.hasAnswer && !state.isGameOver) {
-            dom.statusText.textContent = "Waiting for answer...";
+            setStatus("Waiting for answer...");
         } else if (serverState.hasAnswer && !state.isGameOver) {
-            dom.statusText.textContent = iAmGlobalPainter
+            setStatus(iAmGlobalPainter
                 ? "Answer set. You can start drawing!"
-                : (nameSelected ? "Answer set. Keep guessing!" : "Answer set. Please select your name and start guessing!");
+                : (nameSelected ? "Answer set. Keep guessing!" : "Answer set. Please select your name and start guessing!"));
         } else {
             const lw = serverState.lastWinner ? String(serverState.lastWinner).trim() : "";
-            dom.statusText.textContent = lw ? `Congratulations, ${escapeHtml(lw)}! Please reset the game!` : "Please reset the game!";
+            setStatus(lw ? `Congratulations, ${escapeHtml(lw)}!` : "Please reset the game!", "success");
         }
     } else if (!state.triviaQuestionText) {
-        dom.statusText.textContent = state.isPainter ? "Trivia mode. Set a question!" : "Trivia mode. Waiting for question...";
+        setStatus(state.isPainter ? "Trivia mode. Set a question!" : "Trivia mode. Waiting for question...");
     }
     const t = serverState.topic ? String(serverState.topic) : "";
     renderTopic(t);
