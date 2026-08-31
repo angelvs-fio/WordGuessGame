@@ -250,8 +250,10 @@ export function renderTopic(topic) {
 
 export function renderResults(items, animateWinner = false) {
     dom.resultsBody.innerHTML = "";
-    updateResetHint(items);
-    if (!Array.isArray(items) || items.length === 0) return;
+    if (!Array.isArray(items) || items.length === 0) {
+        updateResetHint(items);
+        return;
+    }
     const activeSet = new Set((state.activePlayers || []).map(a => a.toLowerCase()));
     items.forEach(x => {
         const crown = x.isLastWinner ? " \uD83D\uDC51" : "";
@@ -262,6 +264,7 @@ export function renderResults(items, animateWinner = false) {
         tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
         dom.resultsBody.appendChild(tr);
     });
+    updateResetHint(items);
 }
 
 // Nudges players to start a fresh round (Reset Game) once someone has racked up

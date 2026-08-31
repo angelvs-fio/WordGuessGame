@@ -49,3 +49,9 @@ Thumbs.db
 
 # Tooling
 .appmod/
+
+# Runtime game state (file-store fallback data; must not be baked into deploys)
+WordGuessGame/results.json
+WordGuessGame/lastwinner.txt
+WordGuessGame/topic.txt
+WordGuessGame/winnershistory.json
