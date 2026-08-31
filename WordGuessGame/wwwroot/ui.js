@@ -218,8 +218,8 @@ export async function loadAndRenderResultsFromFile(animateWinner = false) {
     try {
         const res = await fetch("results");
         if (!res.ok) throw new Error(`results ${res.status}`);
-        const items = await res.json();
-        renderResults(items, animateWinner);
+        const payload = await res.json();
+        renderResults(payload.items, !!payload.showResetHint, animateWinner);
     } catch (e) {
         console.error("Failed to load results:", e);
         setStatus("Failed to load results.", "warning");
@@ -248,10 +248,10 @@ export function renderTopic(topic) {
     dom.topicValue.style.textAlign = "center";
 }
 
-export function renderResults(items, animateWinner = false) {
+export function renderResults(items, showResetHint = false, animateWinner = false) {
     dom.resultsBody.innerHTML = "";
     if (!Array.isArray(items) || items.length === 0) {
-        updateResetHint(items);
+        updateResetHint(showResetHint);
         return;
     }
     const activeSet = new Set((state.activePlayers || []).map(a => a.toLowerCase()));
@@ -264,17 +264,11 @@ export function renderResults(items, animateWinner = false) {
         tr.innerHTML = `<td>${nameCell}</td><td>${x.points}</td>`;
         dom.resultsBody.appendChild(tr);
     });
-    updateResetHint(items);
+    updateResetHint(showResetHint);
 }
 
-// Nudges players to start a fresh round (Reset Game) once someone has racked up
-// a lot of points and it's still early in the week, so scores don't snowball all week.
-function updateResetHint(items) {
+function updateResetHint(shouldShow) {
     if (!dom.resetHint || !dom.resetHintText) return;
-    const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, 2=Tue, ...
-    const isStartOfNewSprint = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
-    const maxPoints = Array.isArray(items) ? items.reduce((m, x) => Math.max(m, Number(x.points) || 0), 0) : 0;
-    const shouldShow = isStartOfNewSprint && maxPoints >= 8;
     dom.resetHint.style.display = shouldShow ? "flex" : "none";
     if (shouldShow) {
         dom.resetHintText.textContent = "Please consider whether the result should be reset.";

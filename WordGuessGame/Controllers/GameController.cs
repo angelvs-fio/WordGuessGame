@@ -37,8 +37,17 @@ public static class GameController
             var points = svc.GetResults();
             var lastWinner = svc.GetLastWinner();
             var ordered = points.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                                .Select(kv => new { name = kv.Key, points = kv.Value, isLastWinner = string.Equals(kv.Key, lastWinner, StringComparison.Ordinal) });
-            return Results.Json(ordered);
+                                .Select(kv => new { name = kv.Key, points = kv.Value, isLastWinner = string.Equals(kv.Key, lastWinner, StringComparison.Ordinal) })
+                                .ToList();
+
+            // Nudges players to start a fresh round once the combined score is high
+            // and it's still early in the week, so points don't snowball all week.
+            var dayOfWeek = (int)DateTime.UtcNow.DayOfWeek; // 0=Sun, 1=Mon, 2=Tue, ... matches JS Date.getDay()
+            var isStartOfNewSprint = dayOfWeek is 1 or 2 or 3;
+            var totalPoints = points.Values.Sum();
+            var showResetHint = isStartOfNewSprint && totalPoints >= 8;
+
+            return Results.Json(new { items = ordered, showResetHint });
         });
 
         // Topic endpoints
