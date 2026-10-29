@@ -110,6 +110,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<TriviaService>();
         services.AddSingleton<AnswerSuggestionService>();
+        services.AddSingleton<TopicSuggestionService>();
 
         return services;
     }

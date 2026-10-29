@@ -26,6 +26,8 @@ export const topicLabel = document.getElementById("topicLabel");
 export const topicValue = document.getElementById("topicValue");
 export const setTopicBtn = document.getElementById("setTopicBtn");
 export const topicInput = document.getElementById("topicInput");
+export const suggestTopicBtn = document.getElementById("suggestTopicBtn");
+export const aiTopicSuggestionList = document.getElementById("aiTopicSuggestionList");
 
 export const managePlayersSection = document.getElementById("managePlayersSection");
 export const managePlayerName = document.getElementById("managePlayerName");

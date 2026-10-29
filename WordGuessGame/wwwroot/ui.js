@@ -148,7 +148,9 @@ export function updatePainterUI() {
     if (dom.gameModeToggle) dom.gameModeToggle.style.display = state.isPainter ? "inline-flex" : "none";
     dom.managePlayersSection.style.display = state.isPainter ? "block" : "none";
     dom.setTopicBtn.style.display = state.isPainter ? "inline-block" : "none";
+    dom.suggestTopicBtn.style.display = state.isPainter ? "inline-block" : "none";
     dom.topicInput.style.display = state.isPainter ? "block" : "none";
+    if (!state.isPainter) clearTopicSuggestions();
 }
 
 export function applyNameRowVisibility() {
@@ -170,6 +172,11 @@ export function applyGlobalPainterVisibility() {
 export function clearSuggestions() {
     dom.aiSuggestionList.innerHTML = "";
     dom.aiSuggestionList.style.display = "none";
+}
+
+export function clearTopicSuggestions() {
+    dom.aiTopicSuggestionList.innerHTML = "";
+    dom.aiTopicSuggestionList.style.display = "none";
 }
 
 export function setInputsEnabled(enabled) {

@@ -5,7 +5,7 @@ import {
     applyCanvasEnablement, applyGameMode, applyTriviaGuessState, updateWordCount,
     populateNames, loadAndRenderResultsFromFile, loadTopic,
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
-    applyGlobalPainterVisibility, setInputsEnabled, renderTopic, clearSuggestions,
+    applyGlobalPainterVisibility, setInputsEnabled, renderTopic, clearSuggestions, clearTopicSuggestions,
     updateStatus, initPaletteAndTools,
     loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone, setStatus
 } from "./ui.js";
@@ -193,6 +193,52 @@ dom.setTopicBtn.addEventListener("click", async () => {
     const t = (dom.topicInput.value || "").trim();
     if (!t) return;
     try { await connection.invoke("SetTopic", getUser(), t); } catch (e) { console.error(e); }
+});
+
+// --- Topic: AI suggestions ---
+let suggestTopicRequestId = 0;
+
+function renderTopicSuggestions(items) {
+    dom.aiTopicSuggestionList.innerHTML = "";
+    for (const text of items) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = text;
+        b.title = text;
+        b.addEventListener("click", async () => {
+            dom.topicInput.value = text;
+            clearTopicSuggestions();
+            try { await connection.invoke("SetTopic", getUser(), text); } catch (e) { console.error(e); }
+        });
+        li.appendChild(b);
+        dom.aiTopicSuggestionList.appendChild(li);
+    }
+    dom.aiTopicSuggestionList.style.display = items.length ? "grid" : "none";
+}
+
+dom.suggestTopicBtn.addEventListener("click", async () => {
+    const btn = dom.suggestTopicBtn;
+    const originalText = btn.textContent;
+    const requestId = ++suggestTopicRequestId;
+    btn.textContent = "⏳ Thinking...";
+    btn.disabled = true;
+    try {
+        const res = await fetch("/topics/suggest");
+        const data = await res.json();
+        if (requestId !== suggestTopicRequestId) return;
+        if (!res.ok) {
+            setStatus(data.error || `AI suggestions failed (${res.status}).`, "warning");
+            return;
+        }
+        renderTopicSuggestions(data.suggestions || []);
+    } catch (e) {
+        console.error("AI topic suggestions error:", e);
+        setStatus("AI suggestions failed. Check your connection.", "warning");
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
 });
 
 // --- Game mode ---
@@ -446,6 +492,8 @@ connection.on("TopicUpdated", payload => {
     dom.topicInput.value = t;
     suggestRequestId++;
     clearSuggestions();
+    suggestTopicRequestId++;
+    clearTopicSuggestions();
 });
 
 connection.on("GameModeChanged", payload => {

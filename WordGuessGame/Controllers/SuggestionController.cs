@@ -14,6 +14,14 @@ public static class SuggestionController
                 : Results.Json(new { error = result.Error }, statusCode: result.StatusCode);
         });
 
+        app.MapGet("/topics/suggest", async (GameService game, TopicSuggestionService suggestions) =>
+        {
+            var result = await suggestions.SuggestAsync(game.GetTopic());
+            return result.IsSuccess
+                ? Results.Json(new { suggestions = result.Suggestions })
+                : Results.Json(new { error = result.Error }, statusCode: result.StatusCode);
+        });
+
         return app;
     }
 }

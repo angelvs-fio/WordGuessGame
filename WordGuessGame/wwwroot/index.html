@@ -151,8 +151,10 @@
                         <input id="topicInput" type="text" placeholder="Type new topic" style="flex:1;" />
                     </div>
                     <div class="inline" style="margin-top:8px;">
-                        <button id="setTopicBtn" type="button" style="display:none; width:100%; background-color:#22c55e; color:#000;">Set new topic</button>
+                        <button id="setTopicBtn" type="button" style="display:none; flex:1; background-color:#22c55e; color:#000;">Set new topic</button>
+                        <button id="suggestTopicBtn" class="ai-btn" type="button" style="display:none; flex:1;" title="Suggest topics with AI">💡 Suggest topic</button>
                     </div>
+                    <ul id="aiTopicSuggestionList" class="ai-suggestions two-columns" style="display:none;"></ul>
                 </section>
 
                 <section class="results">
