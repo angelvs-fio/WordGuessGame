@@ -39,6 +39,15 @@ public class AnswerSuggestionService(IConfiguration config, IHttpClientFactory h
         }
     }
 
+    public void ResetHistory()
+    {
+        lock (_historyLock)
+        {
+            _historyTopic = "";
+            _history.Clear();
+        }
+    }
+
     public async Task<AnswerSuggestionResult> SuggestAsync(string topic)
     {
         var apiKey = config["GROQ_API_KEY"];

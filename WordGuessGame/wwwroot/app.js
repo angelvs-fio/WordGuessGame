@@ -325,6 +325,13 @@ dom.triviaGuessInput.addEventListener("keydown", (ev) => {
 });
 
 // --- Reset helpers ---
+function clearAllSuggestions() {
+    suggestRequestId++;
+    suggestTopicRequestId++;
+    clearSuggestions();
+    clearTopicSuggestions();
+}
+
 function setResetStatus(resetMsg) {
     state.isGameOver = false;
     state.hasAnswer = false;
@@ -454,6 +461,7 @@ connection.on("ResetWithResults", async () => {
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
     setStatus("Game reset. Results cleared.");
+    clearAllSuggestions();
     state.isGameOver = false;
     state.hasAnswer = false;
     updateWordCount(0);
@@ -475,6 +483,7 @@ connection.on("ResetKeepResults", async () => {
     if (dom.triviaGuessBtn) dom.triviaGuessBtn.disabled = true;
     dom.historyList.innerHTML = "";
     setStatus("Game reset. Results kept.");
+    clearAllSuggestions();
     state.isGameOver = false;
     state.hasAnswer = false;
     updateWordCount(0);

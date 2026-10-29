@@ -6,7 +6,7 @@ using WordGuessGame.Services;
 
 namespace WordGuessGame.Hubs;
 
-public class GuessHub(GameService service) : Hub
+public class GuessHub(GameService service, AnswerSuggestionService answerSuggestions, TopicSuggestionService topicSuggestions) : Hub
 {
     private readonly GameService _svc = service;
     private static string? _currentPainter;
@@ -118,6 +118,8 @@ public class GuessHub(GameService service) : Hub
     public async Task ResetKeepResults()
     {
         _svc.ResetKeepResults();
+        answerSuggestions.ResetHistory();
+        topicSuggestions.ResetHistory();
         _triviaQuestion = null;
         _triviaCorrectAnswer = null;
         _triviaAnswers.Clear();
@@ -130,6 +132,8 @@ public class GuessHub(GameService service) : Hub
     public async Task ResetWithResults()
     {
         _svc.ResetWithResults();
+        answerSuggestions.ResetHistory();
+        topicSuggestions.ResetHistory();
         _triviaQuestion = null;
         _triviaCorrectAnswer = null;
         _triviaAnswers.Clear();

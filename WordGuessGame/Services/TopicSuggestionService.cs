@@ -12,6 +12,11 @@ public class TopicSuggestionService(IConfiguration config, IHttpClientFactory ht
     private readonly object _historyLock = new();
     private readonly List<string> _history = [];
 
+    public void ResetHistory()
+    {
+        lock (_historyLock) _history.Clear();
+    }
+
     public async Task<AnswerSuggestionResult> SuggestAsync(string? currentTopic)
     {
         var apiKey = config["GROQ_API_KEY"];
