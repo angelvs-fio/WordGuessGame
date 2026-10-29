@@ -25,5 +25,6 @@ app.MapHub<GuessHub>("/hub/guess");
 
 app.MapGameController();
 app.MapTriviaController();
+app.MapSuggestionController();
 
 app.Run();

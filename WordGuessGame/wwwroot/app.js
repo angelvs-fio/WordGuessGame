@@ -5,7 +5,7 @@ import {
     applyCanvasEnablement, applyGameMode, applyTriviaGuessState, updateWordCount,
     populateNames, loadAndRenderResultsFromFile, loadTopic,
     hasSelectedName, getUser, updatePainterUI, applyNameRowVisibility,
-    applyGlobalPainterVisibility, setInputsEnabled, renderTopic,
+    applyGlobalPainterVisibility, setInputsEnabled, renderTopic, clearSuggestions,
     updateStatus, initPaletteAndTools,
     loadWinnersHistory, toggleWinnersHistoryExpand, flashButtonDone, setStatus
 } from "./ui.js";
@@ -129,6 +129,52 @@ dom.setAnswerBtn.addEventListener("click", async () => {
     const answer = (dom.answerInput.value || "").trim();
     if (!answer) return;
     try { await connection.invoke("SetAnswer", getUser(), answer); } catch (e) { console.error(e); }
+});
+
+// --- Answer: AI suggestions ---
+let suggestRequestId = 0;
+
+function renderSuggestions(items) {
+    dom.aiSuggestionList.innerHTML = "";
+    for (const text of items) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = text;
+        b.title = text;
+        b.addEventListener("click", async () => {
+            dom.answerInput.value = text;
+            clearSuggestions();
+            try { await connection.invoke("SetAnswer", getUser(), text); } catch (e) { console.error(e); }
+        });
+        li.appendChild(b);
+        dom.aiSuggestionList.appendChild(li);
+    }
+    dom.aiSuggestionList.style.display = items.length ? "grid" : "none";
+}
+
+dom.suggestAnswerBtn.addEventListener("click", async () => {
+    const btn = dom.suggestAnswerBtn;
+    const originalText = btn.textContent;
+    const requestId = ++suggestRequestId;
+    btn.textContent = "⏳ Thinking...";
+    btn.disabled = true;
+    try {
+        const res = await fetch("/answers/suggest");
+        const data = await res.json();
+        if (requestId !== suggestRequestId) return;
+        if (!res.ok) {
+            setStatus(data.error || `AI suggestions failed (${res.status}).`, "warning");
+            return;
+        }
+        renderSuggestions(data.suggestions || []);
+    } catch (e) {
+        console.error("AI suggestions error:", e);
+        setStatus("AI suggestions failed. Check your connection.", "warning");
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = state.isGameOver || !state.isPainter || state.hasAnswer;
+    }
 });
 
 // --- Guess ---
@@ -319,6 +365,9 @@ connection.on("AnswerSet", async payload => {
         ? "Answer set. You can start drawing!"
         : (nameSelected ? `Answer set by ${payload.by}. Start guessing!` : `Answer set by ${payload.by}. Please select your name and start guessing!`));
     state.hasAnswer = true;
+    suggestRequestId++;
+    clearSuggestions();
+    dom.suggestAnswerBtn.disabled = true;
     if (payload.wordCount > 0) updateWordCount(payload.wordCount);
     applyCanvasEnablement();
     if (state.isPainter) flashButtonDone(dom.setAnswerBtn);
@@ -395,6 +444,8 @@ connection.on("TopicUpdated", payload => {
     const t = (payload && payload.topic) ? String(payload.topic) : "";
     renderTopic(t);
     dom.topicInput.value = t;
+    suggestRequestId++;
+    clearSuggestions();
 });
 
 connection.on("GameModeChanged", payload => {

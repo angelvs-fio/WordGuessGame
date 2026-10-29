@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <title>Skribbl 2</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anta&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js" crossorigin="anonymous"></script>
 </head>
@@ -34,7 +37,9 @@
                     <div class="inline">
                         <input id="answerInput" type="text" placeholder="Enter answer word (visible)" />
                         <button id="setAnswerBtn" type="button">Set Answer</button>
+                        <button id="suggestAnswerBtn" class="ai-btn" type="button" title="Suggest answers with AI">💡 Suggest</button>
                     </div>
+                    <ul id="aiSuggestionList" class="ai-suggestions" style="display:none;"></ul>
                 </section>
 
                 <section id="triviaQuestionSection" style="display:none;">

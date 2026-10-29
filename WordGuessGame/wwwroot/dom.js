@@ -6,6 +6,8 @@ export const guessSection = document.getElementById("guessSection");
 
 export const answerInput = document.getElementById("answerInput");
 export const setAnswerBtn = document.getElementById("setAnswerBtn");
+export const suggestAnswerBtn = document.getElementById("suggestAnswerBtn");
+export const aiSuggestionList = document.getElementById("aiSuggestionList");
 export const guessInput = document.getElementById("guessInput");
 export const guessBtn = document.getElementById("guessBtn");
 

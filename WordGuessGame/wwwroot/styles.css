@@ -13,7 +13,7 @@
 
 body {
     margin: 0;
-    font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;
+    font-family: "Anta",sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;
     background: linear-gradient(180deg,#0b1020,var(--bg));
     color: var(--text)
 }
@@ -140,6 +140,10 @@ input[type="text"], input[type="password"], select {
     box-shadow: 0 0 0 2px rgb(220 38 38 / .25) !important;
 }
 
+button, input, select, textarea {
+    font-family: inherit;
+}
+
 button {
     position: relative;
     overflow: hidden;
@@ -209,6 +213,47 @@ button:active:not(:disabled) {
     filter: brightness(1.15)
 }
 
+.ai-suggestions {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, auto);
+    grid-auto-flow: column; /* fill each column of 3 top to bottom */
+    gap: 6px;
+}
+
+.ai-suggestions li button {
+    width: 100%;
+    min-height: 0;
+    padding: 6px 10px;
+    font-size: 15px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(168, 85, 247, .12);
+    border: 1px solid rgba(168, 85, 247, .45);
+    color: #e9d5ff;
+    border-radius: 999px;
+    box-shadow: none;
+    transition: background .15s, transform .15s;
+}
+
+/* Drop the glossy shine overlays of the global button style for these flat pills */
+.ai-suggestions li button::before,
+.ai-suggestions li button::after {
+    display: none;
+}
+
+.ai-suggestions li button:hover {
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    border-color: transparent;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
     button:disabled {
         opacity: .5;
         cursor: not-allowed;
@@ -220,7 +265,7 @@ button:active:not(:disabled) {
     color: #000000 !important
 }
 
-#setAnswerBtn, #guessBtn {
+#setAnswerBtn, #suggestAnswerBtn, #guessBtn {
     min-width: 130px;
 }
 
@@ -648,8 +693,10 @@ h2 {
 
 /* Increase font size for usernames dropdown */
 #userName {
+    font-family: inherit;
     font-size: 14px;
 }
 #userName option {
+    font-family: inherit;
     font-size: 14px;
 }

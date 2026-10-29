@@ -167,6 +167,11 @@ export function applyGlobalPainterVisibility() {
     applyCanvasEnablement();
 }
 
+export function clearSuggestions() {
+    dom.aiSuggestionList.innerHTML = "";
+    dom.aiSuggestionList.style.display = "none";
+}
+
 export function setInputsEnabled(enabled) {
     const nameSelected = hasSelectedName();
     if (!state.triviaMode) {
@@ -176,6 +181,8 @@ export function setInputsEnabled(enabled) {
     applyNameRowVisibility();
     dom.answerInput.disabled = !enabled || state.isGameOver || !state.isPainter;
     dom.setAnswerBtn.disabled = !enabled || state.isGameOver || !state.isPainter || state.hasAnswer;
+    dom.suggestAnswerBtn.disabled = !enabled || state.isGameOver || !state.isPainter || state.hasAnswer;
+    if (dom.suggestAnswerBtn.disabled) clearSuggestions();
     const canGuess = enabled && !state.isGameOver && !state.isPainter && nameSelected;
     dom.guessInput.disabled = !canGuess;
     dom.guessBtn.disabled = !canGuess;
