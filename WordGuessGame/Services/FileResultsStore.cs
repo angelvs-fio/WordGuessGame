@@ -11,6 +11,7 @@ public sealed class FileResultsStore : IResultsStore
     private readonly string _lastWinnerPath;
     private readonly string _topicPath;
     private readonly string _winnersHistoryPath;
+    private readonly string _previousWinnersPath;
     private static readonly JsonSerializerOptions _opts = new() { WriteIndented = true };
 
     public FileResultsStore(string resultsPath)
@@ -20,6 +21,7 @@ public sealed class FileResultsStore : IResultsStore
         _lastWinnerPath = Path.Combine(dir, "lastwinner.txt");
         _topicPath = Path.Combine(dir, "topic.txt");
         _winnersHistoryPath = Path.Combine(dir, "winnershistory.json");
+        _previousWinnersPath = Path.Combine(dir, "previouswinners.json");
     }
 
     public IDictionary<string, int> GetResults()
@@ -119,6 +121,26 @@ public sealed class FileResultsStore : IResultsStore
                 list = list.Take(MaxWinnersHistory).ToList();
             var json = JsonSerializer.Serialize(list, _opts);
             File.WriteAllText(_winnersHistoryPath, json);
+        }
+        catch { /* ignore */ }
+    }
+
+    public IReadOnlyList<string> GetPreviousGameWinners()
+    {
+        try
+        {
+            if (!File.Exists(_previousWinnersPath)) return Array.Empty<string>();
+            using var fs = File.OpenRead(_previousWinnersPath);
+            return JsonSerializer.Deserialize<List<string>>(fs) ?? (IReadOnlyList<string>)Array.Empty<string>();
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    public void SetPreviousGameWinners(IReadOnlyList<string> winners)
+    {
+        try
+        {
+            File.WriteAllText(_previousWinnersPath, JsonSerializer.Serialize(winners, _opts));
         }
         catch { /* ignore */ }
     }

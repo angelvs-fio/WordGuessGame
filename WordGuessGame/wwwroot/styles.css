@@ -705,3 +705,21 @@ h2 {
     font-family: inherit;
     font-size: 14px;
 }
+
+.previous-winners strong {
+    color: #22c55e;
+}
+
+.previous-winners-cup {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.previous-winners {
+    margin-top: 8px;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    color: #ffffff;
+    font-size: 0.9rem;
+}

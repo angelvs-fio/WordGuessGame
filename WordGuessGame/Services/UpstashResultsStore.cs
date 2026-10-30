@@ -19,6 +19,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
     private readonly string _playersKey;
     private readonly string _topicKey;
     private readonly string _winnersHistoryKey;
+    private readonly string _previousWinnersKey;
 
     public UpstashResultsStore(string baseUrl, string token, string prefix = "wordguess")
     {
@@ -30,6 +31,7 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         _playersKey = $"{prefix}:players";
         _topicKey = $"{prefix}:topic";
         _winnersHistoryKey = $"{prefix}:winnershistory";
+        _previousWinnersKey = $"{prefix}:previouswinners";
         _http = new HttpClient();
         _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
@@ -337,6 +339,35 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         try
         {
             var url = $"{_baseUrl}/del/{Uri.EscapeDataString(_winnersHistoryKey)}";
+            _http.PostAsync(url, null).GetAwaiter().GetResult();
+        }
+        catch { /* ignore */ }
+    }
+
+    // Winner(s) of the last game that was reset with results: stored as a JSON array string
+    public IReadOnlyList<string> GetPreviousGameWinners()
+    {
+        try
+        {
+            var url = $"{_baseUrl}/get/{Uri.EscapeDataString(_previousWinnersKey)}";
+            var resp = _http.GetAsync(url).GetAwaiter().GetResult();
+            if (!resp.IsSuccessStatusCode) return Array.Empty<string>();
+            var json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("result", out var result) || result.ValueKind != JsonValueKind.String)
+                return Array.Empty<string>();
+            var raw = result.GetString();
+            if (string.IsNullOrWhiteSpace(raw)) return Array.Empty<string>();
+            return JsonSerializer.Deserialize<string[]>(raw) ?? Array.Empty<string>();
+        }
+        catch { return Array.Empty<string>(); }
+    }
+
+    public void SetPreviousGameWinners(IReadOnlyList<string> winners)
+    {
+        try
+        {
+            var url = $"{_baseUrl}/set/{Uri.EscapeDataString(_previousWinnersKey)}/{Uri.EscapeDataString(JsonSerializer.Serialize(winners))}";
             _http.PostAsync(url, null).GetAwaiter().GetResult();
         }
         catch { /* ignore */ }

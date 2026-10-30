@@ -47,7 +47,7 @@ public static class GameController
             var totalPoints = points.Values.Sum();
             var showResetHint = isStartOfNewSprint && totalPoints >= 8;
 
-            return Results.Json(new { items = ordered, showResetHint });
+            return Results.Json(new { items = ordered, showResetHint, previousWinners = svc.PreviousGameWinners });
         });
 
         // Topic endpoints

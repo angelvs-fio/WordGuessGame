@@ -19,7 +19,8 @@ export const statusSection = document.getElementById("statusSection");
 export const statusText = document.getElementById("statusText");
 export const historyList = document.getElementById("historyList");
 export const resultsBody = document.getElementById("resultsBody");
-export const resetHint = document.getElementById("resetHint");
+export const previousWinners = document.getElementById("previousWinners");
+export const resetHint =document.getElementById("resetHint");
 export const resetHintText = document.getElementById("resetHintText");
 
 export const topicLabel = document.getElementById("topicLabel");

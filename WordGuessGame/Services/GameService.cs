@@ -16,6 +16,8 @@ public interface IResultsStore
     IReadOnlyList<WinnerRecord> GetWinnersHistory();
     void AddWinnerHistory(string player, DateTimeOffset when);
     void ClearWinnersHistory();
+    IReadOnlyList<string> GetPreviousGameWinners();
+    void SetPreviousGameWinners(IReadOnlyList<string> winners);
 }
 
 public sealed class GameService
@@ -57,6 +59,7 @@ public sealed class GameService
 
         if (!keepResults)
         {
+            CaptureFinalWinners();
             ResetResultsToZero();
             _store.ClearWinnersHistory();
         }
@@ -164,6 +167,23 @@ public sealed class GameService
         var t = (topic ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(t)) return;
         _store.SetTopic(t);
+    }
+
+    // Names of the top scorer(s) of the game that was last reset with results (ties included).
+    // Persisted in the results store (Redis for Upstash) so it survives restarts.
+    public IReadOnlyList<string> PreviousGameWinners => _store.GetPreviousGameWinners();
+
+    private void CaptureFinalWinners()
+    {
+        var results = _store.GetResults();
+        var max = results.Count == 0 ? 0 : results.Values.Max();
+        var winners = max <= 0
+            ? Array.Empty<string>()
+            : results.Where(kv => kv.Value == max)
+                     .Select(kv => kv.Key)
+                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                     .ToArray();
+        _store.SetPreviousGameWinners(winners);
     }
 
     private void ResetResultsToZero()

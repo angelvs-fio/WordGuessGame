@@ -234,6 +234,7 @@ export async function loadAndRenderResultsFromFile(animateWinner = false) {
         if (!res.ok) throw new Error(`results ${res.status}`);
         const payload = await res.json();
         renderResults(payload.items, !!payload.showResetHint, animateWinner);
+        renderPreviousWinners(payload.previousWinners);
     } catch (e) {
         console.error("Failed to load results:", e);
         setStatus("Failed to load results.", "warning");
@@ -279,6 +280,14 @@ export function renderResults(items, showResetHint = false, animateWinner = fals
         dom.resultsBody.appendChild(tr);
     });
     updateResetHint(showResetHint);
+}
+
+function renderPreviousWinners(names) {
+    if (!dom.previousWinners) return;
+    const list = Array.isArray(names) ? names : [];
+    dom.previousWinners.style.display = list.length ? "flex" : "none";
+    if (!list.length) return;
+    dom.previousWinners.innerHTML = `<span class="previous-winners-cup">🏆</span><span>Last sprint winners:<br><strong>${list.map(escapeHtml).join(", ")}</strong></span>`;
 }
 
 function updateResetHint(shouldShow) {
