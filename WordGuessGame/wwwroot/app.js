@@ -58,7 +58,7 @@ async function managePlayer(action) {
         const res = await fetch(`/players/manage/${action}?name=${encodeURIComponent(name)}`, { method: "POST" });
         if (!res.ok) throw new Error(`${action} ${res.status}`);
         dom.managePlayerName.value = "";
-        await populateNames();
+        await populateNames({ keepSelection: true });
         await loadAndRenderResultsFromFile();
     } catch (e) {
         console.error(`Failed to ${action} player:`, e);

@@ -204,11 +204,12 @@ export function setInputsEnabled(enabled) {
     applyTriviaGuessState();
 }
 
-export async function populateNames() {
+export async function populateNames({ keepSelection = false } = {}) {
     try {
         const res = await fetch("players");
         if (!res.ok) throw new Error(`players ${res.status}`);
         const names = await res.json();
+        const previous = keepSelection ? (dom.userNameInput.value || "") : "";
         dom.userNameInput.innerHTML = "";
         const placeholder = document.createElement("option");
         placeholder.value = "";
@@ -222,6 +223,8 @@ export async function populateNames() {
             opt.textContent = n;
             dom.userNameInput.appendChild(opt);
         });
+        // Restore the previous selection if that player still exists
+        if (previous && names.includes(previous)) dom.userNameInput.value = previous;
     } catch (e) {
         console.error("Failed to load players:", e);
         setStatus("Failed to load players.", "warning");

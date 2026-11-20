@@ -8,7 +8,12 @@ namespace WordGuessGame.Services;
 public interface IResultsStore
 {
     IDictionary<string, int> GetResults();
-    void WriteResults(IDictionary<string, int> dict);
+    // Adds the player with 0 points only if they have no score yet; never overwrites.
+    void EnsureScore(string player);
+    void IncrementScore(string player);
+    void RemoveScore(string player);
+    // Wipes all scores and seeds the given players at 0. Only used by "Reset Game".
+    void ResetScores(IEnumerable<string> players);
     string? GetLastWinner();
     void SetLastWinner(string winner);
     string? GetTopic();
@@ -37,7 +42,6 @@ public sealed class GameService
     {
         _store = store;
         _reg = reg;
-        EnsurePlayersPersisted();
     }
 
     public bool IsGameOver => _isGameOver;
@@ -119,40 +123,22 @@ public sealed class GameService
     public IDictionary<string, int> GetResults()
     {
         var dict = _store.GetResults();
-        bool changed = false;
 
-        // If using Upstash, align missing players to the current Upstash players set
-        if (_store is UpstashResultsStore upstash)
+        // Make sure every known player has a score entry (added at 0, existing scores untouched)
+        foreach (var p in KnownPlayers())
         {
-            var players = upstash.GetPlayers();
-            foreach (var p in players)
+            if (!dict.ContainsKey(p))
             {
-                if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
+                _store.EnsureScore(p);
+                dict[p] = 0;
             }
-        }
-        else
-        {
-            foreach (var p in _reg.Players)
-            {
-                if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
-            }
-        }
-
-        if (changed)
-        {
-            // Persist any missing players with zero scores
-            _store.WriteResults(dict);
         }
         return dict;
     }
 
     public void IncrementPoint(string winner)
     {
-        var dict = _store.GetResults();
-        if (!dict.ContainsKey(winner))
-            dict[winner] = 0;
-        dict[winner] += 1;
-        _store.WriteResults(dict);
+        _store.IncrementScore(winner);
         _store.SetLastWinner(winner);
         _store.AddWinnerHistory(winner, DateTimeOffset.UtcNow);
     }
@@ -186,40 +172,9 @@ public sealed class GameService
         _store.SetPreviousGameWinners(winners);
     }
 
-    private void ResetResultsToZero()
-    {
-        var players = (_store is UpstashResultsStore upstash)
-            ? upstash.GetPlayers()
-            : _reg.Players;
-        var dict = players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
-        _store.WriteResults(dict);
-    }
+    // The only place scores are wiped: "Reset Game" (ResetWithResults)
+    private void ResetResultsToZero() => _store.ResetScores(KnownPlayers());
 
-    private void EnsurePlayersPersisted()
-    {
-        var dict = _store.GetResults();
-        if (dict.Count == 0)
-        {
-            var players = (_store is UpstashResultsStore upstash)
-                ? upstash.GetPlayers()
-                : _reg.Players;
-            if (players.Length > 0)
-            {
-                // Seed all players with zero points
-                var seed = players.ToDictionary(p => p, _ => 0, StringComparer.OrdinalIgnoreCase);
-                _store.WriteResults(seed);
-                return;
-            }
-        }
-        bool changed = false;
-        var baseline = (_store is UpstashResultsStore upstash2) ? upstash2.GetPlayers() : _reg.Players;
-        foreach (var p in baseline)
-        {
-            if (!dict.ContainsKey(p)) { dict[p] = 0; changed = true; }
-        }
-        if (changed)
-        {
-            _store.WriteResults(dict);
-        }
-    }
+    private string[] KnownPlayers() =>
+        (_store is UpstashResultsStore upstash) ? upstash.GetPlayers() : _reg.Players;
 }

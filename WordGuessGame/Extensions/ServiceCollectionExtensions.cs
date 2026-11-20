@@ -70,18 +70,10 @@ public static class ServiceCollectionExtensions
                 var players = upstashStore.GetPlayers();
                 if (players.Length > 0)
                 {
-                    // Sync scores to exactly this set (preserve scores where present)
-                    try
-                    {
-                        var current = upstashStore.GetResults();
-                        var synced = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var p in players)
-                        {
-                            synced[p] = current.TryGetValue(p, out var score) ? score : 0;
-                        }
-                        upstashStore.WriteResults(synced);
-                    }
-                    catch { }
+                    // Drop scores of players no longer in the set (missing players are added by GameService.GetResults)
+                    var playerSet = new HashSet<string>(players, StringComparer.OrdinalIgnoreCase);
+                    foreach (var stale in upstashStore.GetResults().Keys.Where(k => !playerSet.Contains(k)))
+                        upstashStore.RemoveScore(stale);
                     return new PlayerRegistry(players);
                 }
             }

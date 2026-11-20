@@ -85,37 +85,33 @@ public sealed class UpstashResultsStore : IResultsStore, IDisposable
         }
     }
 
-    public void WriteResults(IDictionary<string, int> dict)
+    // Single-field atomic score operations: none of these can affect other players' scores.
+    public void EnsureScore(string player) => ScoreCommand("hsetnx", player, "0"); // never overwrites
+    public void IncrementScore(string player) => ScoreCommand("hincrby", player, "1");
+    public void RemoveScore(string player) => ScoreCommand("hdel", player);
+
+    private void ScoreCommand(string command, string player, params string[] args)
     {
+        if (string.IsNullOrWhiteSpace(player)) return;
+        var segments = new[] { _scoresKey, player }.Concat(args).Select(Uri.EscapeDataString);
+        try { _http.PostAsync($"{_baseUrl}/{command}/{string.Join('/', segments)}", null).GetAwaiter().GetResult(); }
+        catch { /* ignore */ }
+    }
+
+    // Only used by "Reset Game". DEL + HSET run in one MULTI/EXEC transaction so no
+    // other request can see (and write back) a half-reset hash.
+    public void ResetScores(IEnumerable<string> players)
+    {
+        var commands = new List<string[]> { new[] { "DEL", _scoresKey } };
+        var list = players.ToArray();
+        if (list.Length > 0)
+            commands.Add(new[] { "HSET", _scoresKey }.Concat(list.SelectMany(p => new[] { p, "0" })).ToArray());
         try
         {
-            // Always reset the hash to ensure removed players don't linger
-            var urlDel = $"{_baseUrl}/del/{Uri.EscapeDataString(_scoresKey)}";
-            _http.PostAsync(urlDel, null).GetAwaiter().GetResult();
-
-            if (dict.Count == 0)
-            {
-                return;
-            }
-            // Build HSET URL with path segments: /hset/key/field/value/field/value...
-            var segments = new List<string>
-            {
-                _baseUrl.TrimEnd('/'),
-                "hset",
-                Uri.EscapeDataString(_scoresKey)
-            };
-            foreach (var kv in dict)
-            {
-                segments.Add(Uri.EscapeDataString(kv.Key));
-                segments.Add(Uri.EscapeDataString(kv.Value.ToString()));
-            }
-            var url = string.Join('/', segments);
-            _http.PostAsync(url, null).GetAwaiter().GetResult();
+            using var body = new StringContent(JsonSerializer.Serialize(commands), Encoding.UTF8, "application/json");
+            _http.PostAsync($"{_baseUrl}/multi-exec", body).GetAwaiter().GetResult();
         }
-        catch
-        {
-            // ignore
-        }
+        catch { /* ignore */ }
     }
 
     public string? GetLastWinner()

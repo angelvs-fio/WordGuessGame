@@ -80,11 +80,10 @@ public static class GameController
             if (store is not UpstashResultsStore upstash) return Results.BadRequest(new { error = "Upstash store required" });
             var name = ctx.Request.Query["name"].ToString().Trim();
             if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "name required" });
+            name = ExistingCasing(upstash, name);
             upstash.AddPlayer(name);
-            // Ensure scores include the player
+            upstash.EnsureScore(name); // 0 only if missing; other scores untouched
             var current = upstash.GetResults();
-            if (!current.ContainsKey(name)) current[name] = 0;
-            upstash.WriteResults(current);
             var players = upstash.GetPlayers();
             return Results.Json(new { players, results = current.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => new { name = kv.Key, points = kv.Value }) });
         });
@@ -94,17 +93,18 @@ public static class GameController
             if (store is not UpstashResultsStore upstash) return Results.BadRequest(new { error = "Upstash store required" });
             var name = ctx.Request.Query["name"].ToString().Trim();
             if (string.IsNullOrWhiteSpace(name)) return Results.BadRequest(new { error = "name required" });
+            name = ExistingCasing(upstash, name);
             upstash.RemovePlayer(name);
-            // Remove from scores
+            upstash.RemoveScore(name);
             var current = upstash.GetResults();
-            if (current.Remove(name))
-            {
-                upstash.WriteResults(current);
-            }
             var players = upstash.GetPlayers();
             return Results.Json(new { players, results = current.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).Select(kv => new { name = kv.Key, points = kv.Value }) });
         });
 
         return app;
     }
+
+    // Redis keys are case-sensitive: map "bob" to an existing "Bob" so names never duplicate
+    private static string ExistingCasing(UpstashResultsStore upstash, string name) =>
+        upstash.GetPlayers().FirstOrDefault(p => string.Equals(p, name, StringComparison.OrdinalIgnoreCase)) ?? name;
 }

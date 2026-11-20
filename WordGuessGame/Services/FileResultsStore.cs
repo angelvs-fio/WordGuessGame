@@ -13,6 +13,7 @@ public sealed class FileResultsStore : IResultsStore
     private readonly string _winnersHistoryPath;
     private readonly string _previousWinnersPath;
     private static readonly JsonSerializerOptions _opts = new() { WriteIndented = true };
+    private readonly object _scoresLock = new();
 
     public FileResultsStore(string resultsPath)
     {
@@ -42,7 +43,46 @@ public sealed class FileResultsStore : IResultsStore
         }
     }
 
-    public void WriteResults(IDictionary<string, int> dict)
+    public void EnsureScore(string player) => UpdateScores(d => d.TryAdd(player, 0));
+    public void IncrementScore(string player) => UpdateScores(d => { d[player] = d.GetValueOrDefault(player) + 1; return true; });
+    public void RemoveScore(string player) => UpdateScores(d => d.Remove(player));
+
+    public void ResetScores(IEnumerable<string> players)
+    {
+        lock (_scoresLock)
+            WriteResultsFile(players.Distinct(StringComparer.OrdinalIgnoreCase).ToDictionary(p => p, _ => 0));
+    }
+
+    // Read-modify-write under a lock; `change` returns whether anything changed.
+    // Never overwrites a file it couldn't read.
+    private void UpdateScores(Func<Dictionary<string, int>, bool> change)
+    {
+        lock (_scoresLock)
+        {
+            if (TryReadResults(out var dict) && change(dict))
+                WriteResultsFile(dict);
+        }
+    }
+
+    // Distinguishes "no file yet" (empty, OK to write) from "file unreadable" (must not overwrite)
+    private bool TryReadResults(out Dictionary<string, int> dict)
+    {
+        dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (!File.Exists(_resultsPath)) return true;
+            using var fs = File.OpenRead(_resultsPath);
+            var raw = JsonSerializer.Deserialize<Dictionary<string, int>>(fs);
+            if (raw != null) dict = new Dictionary<string, int>(raw, StringComparer.OrdinalIgnoreCase);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void WriteResultsFile(IDictionary<string, int> dict)
     {
         var ordered = dict.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
                           .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
